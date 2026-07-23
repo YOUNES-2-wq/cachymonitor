@@ -2,6 +2,8 @@
 
 Moniteur système léger pour CachyOS : **CPU, GPU, RAM, VRAM, températures et FPS**, avec graphes temps réel. Un seul fichier Python, une seule dépendance (PySide6).
 
+> ℹ️ Projet communautaire indépendant, créé par un utilisateur de CachyOS. **Non affilié à l'équipe officielle de CachyOS** — le nom traduit simplement l'affection pour la distribution.
+
 ![CachyMonitor en pleine session de jeu](docs/screenshot.png)
 
 *En jeu : FPS, 1 % low, frametime et goulot d'étranglement CPU/GPU en temps réel.*
