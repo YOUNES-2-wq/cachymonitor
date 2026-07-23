@@ -46,8 +46,6 @@ from PySide6.QtWidgets import (
     QCheckBox, QSpinBox, QSizePolicy,
 )
 
-IS_WINDOWS = sys.platform.startswith("win")
-
 # ----------------------------------------------------------------------------- #
 #  Configuration
 # ----------------------------------------------------------------------------- #
@@ -108,8 +106,6 @@ def temp_color(t):
 
 def _find_hwmon(name):
     """Renvoie le chemin d'un hwmon par son nom (ex: 'k10temp')."""
-    if IS_WINDOWS:
-        return None
     for path in glob.glob("/sys/class/hwmon/hwmon*"):
         try:
             with open(os.path.join(path, "name")) as f:
@@ -149,8 +145,6 @@ def find_cpu_temp_file():
     libellé (tempN_label) vaut Tctl/Tdie chez AMD, « Package id 0 » chez Intel.
     Sans libellé exploitable, on retombe sur temp1_input.
     """
-    if IS_WINDOWS:
-        return None
     for driver in CPU_TEMP_DRIVERS:
         hw = _find_hwmon(driver)
         if not hw:
@@ -172,17 +166,9 @@ class CpuReader:
     """Usage CPU (total + par cœur), fréquence et température."""
 
     def __init__(self):
-        if IS_WINDOWS:
-            try:
-                import psutil
-                psutil.cpu_percent(interval=None)
-                psutil.cpu_percent(percpu=True, interval=None)
-            except ImportError:
-                pass
-        else:
-            self._prev = self._read_stat()
-            # Détection indépendante du constructeur (AMD, Intel, générique).
-            self._temp_file = find_cpu_temp_file()
+        self._prev = self._read_stat()
+        # Détection indépendante du constructeur (AMD, Intel, générique).
+        self._temp_file = find_cpu_temp_file()
 
     @staticmethod
     def _read_stat():
@@ -231,42 +217,7 @@ class CpuReader:
         except (OSError, ValueError):
             return None
 
-    def sample_win(self):
-        try:
-            import psutil
-            cpu_pct = psutil.cpu_percent(interval=None)
-            cpu_cores = psutil.cpu_percent(percpu=True, interval=None)
-            freq_info = psutil.cpu_freq()
-            cpu_freq = freq_info.current if freq_info else None
-        except ImportError:
-            return {
-                "cpu_pct": 0.0,
-                "cpu_cores": [],
-                "cpu_freq": None,
-                "cpu_temp": None,
-            }
-
-        # Température via WMI
-        cpu_temp = None
-        try:
-            import win32com.client
-            wmi = win32com.client.GetObject("winmgmts:\\\\.\\root\\wmi")
-            for item in wmi.InstancesOf("MSAcpi_ThermalZoneTemperature"):
-                cpu_temp = (item.CurrentTemperature / 10.0) - 273.15
-                break
-        except Exception:
-            pass
-
-        return {
-            "cpu_pct": cpu_pct,
-            "cpu_cores": cpu_cores,
-            "cpu_freq": cpu_freq,
-            "cpu_temp": cpu_temp,
-        }
-
     def sample(self):
-        if IS_WINDOWS:
-            return self.sample_win()
         usage = self._usage()
         cores = sorted(
             (k for k in usage if k != "cpu"),
@@ -281,18 +232,6 @@ class CpuReader:
 
 
 def read_ram():
-    if IS_WINDOWS:
-        try:
-            import psutil
-            mem = psutil.virtual_memory()
-            return {
-                "ram_used": mem.used / 1024 / 1024 / 1024,
-                "ram_total": mem.total / 1024 / 1024 / 1024,
-                "ram_pct": mem.percent,
-            }
-        except ImportError:
-            return {"ram_used": 0.0, "ram_total": 0.0, "ram_pct": 0.0}
-
     info = {}
     with open("/proc/meminfo") as f:
         for line in f:
@@ -320,12 +259,6 @@ def _clean_cpu(name):
 
 def read_cpu_name():
     """Nom du processeur (ex: 'AMD Ryzen 5 5600')."""
-    if IS_WINDOWS:
-        try:
-            import platform
-            return _clean_cpu(platform.processor() or "CPU")
-        except Exception:
-            return "CPU"
     try:
         with open("/proc/cpuinfo") as f:
             for line in f:
@@ -358,25 +291,18 @@ def _ram_dmi():
 
 def read_ram_name():
     """Capacité physique (+ type/vitesse si dmidecode dispo), ex: '16 Gio · DDR4 3200 MT/s'."""
-    if IS_WINDOWS:
-        try:
-            import psutil
-            gib = psutil.virtual_memory().total / 1024 / 1024 / 1024
-        except ImportError:
-            return "RAM"
-    else:
-        kb = None
-        try:
-            with open("/proc/meminfo") as f:
-                for line in f:
-                    if line.startswith("MemTotal"):
-                        kb = int(line.split()[1])
-                        break
-        except OSError:
-            pass
-        if not kb:
-            return "RAM"
-        gib = kb / 1024 / 1024
+    kb = None
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal"):
+                    kb = int(line.split()[1])
+                    break
+    except OSError:
+        pass
+    if not kb:
+        return "RAM"
+    gib = kb / 1024 / 1024
     # La capacité « affichée » est < à la capacité physique (kernel, intégré) :
     # on arrondit au multiple de 4 Gio le plus proche pour retomber sur 8/16/32…
     phys = round(gib / 4) * 4 if gib > 6 else round(gib)
@@ -451,16 +377,9 @@ def _num(x):
 def _gpu_nvidia():
     """GPU NVIDIA via nvidia-smi (usage, temp, VRAM, clock, power)."""
     query = "name,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.gr,power.draw"
-    cmd = "nvidia-smi"
-    if IS_WINDOWS:
-        import shutil
-        if not shutil.which("nvidia-smi"):
-            cand = r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"
-            if os.path.exists(cand):
-                cmd = cand
     try:
         out = subprocess.run(
-            [cmd, f"--query-gpu={query}", "--format=csv,noheader,nounits"],
+            ["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=4,
         ).stdout.strip().splitlines()
     except (OSError, subprocess.SubprocessError):
@@ -596,8 +515,7 @@ class GameReader:
     """
 
     # Colonnes du CSV MangoHud qui nous intéressent.
-    WANTED = ("fps", "frametime", "cpu_load", "gpu_load", "gpu_vram_used",
-              "gpu_core_clock", "cpu_temp", "gpu_temp", "elapsed")
+    WANTED = ("fps", "frametime", "cpu_load", "gpu_load", "gpu_vram_used", "elapsed")
 
     def __init__(self):
         self._path = None        # log en cours de suivi
@@ -712,8 +630,6 @@ class GameReader:
     # -- API -------------------------------------------------------------- #
     def sample(self):
         """Renvoie un dict décrivant la session, ou None si aucun jeu actif."""
-        if IS_WINDOWS:
-            return None
         path, mtime = self._newest_log()
         if not path:
             return None
@@ -1071,55 +987,15 @@ class GaugeCard(QFrame):
         self.trend.push(percent)
 
 
-class MetricCard(QFrame):
-    """Carte : titre, grande valeur, sous-texte, sparkline."""
-
-    def __init__(self, title, color, max_value=100.0):
-        super().__init__()
-        self.color = color
-        self.setObjectName("card")
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 14, 16, 14)
-        lay.setSpacing(6)
-
-        top = QHBoxLayout()
-        self.title = QLabel(title)
-        self.title.setObjectName("cardTitle")
-        dot = QLabel("●")
-        dot.setStyleSheet(f"color:{color}; font-size:12px;")
-        top.addWidget(dot)
-        top.addWidget(self.title)
-        top.addStretch()
-        self.value = QLabel("—")
-        self.value.setObjectName("cardValue")
-        top.addWidget(self.value)
-        lay.addLayout(top)
-
-        self.sub = QLabel("")
-        self.sub.setObjectName("cardSub")
-        lay.addWidget(self.sub)
-
-        self.extra = None  # widget optionnel inséré avant la sparkline
-
-        self.spark = Sparkline(color, max_value=max_value)
-        lay.addWidget(self.spark, 1)
-
-    def add_extra(self, widget):
-        # insère juste avant la sparkline
-        self.layout().insertWidget(self.layout().count() - 1, widget)
-        self.extra = widget
-
-
 class StatBox(QVBoxLayout):
     """Petite statistique : grande valeur + libellé dessous."""
 
     def __init__(self, label, color=C_TEXT, big=False):
         super().__init__()
         self.setSpacing(0)
+        self._font_px = 34 if big else 20
         self.value = QLabel("—")
-        self.value.setStyleSheet(
-            f"color:{color}; font-size:{'34' if big else '20'}px; font-weight:700;"
-        )
+        self._apply_color(color)
         self.value.setAlignment(Qt.AlignCenter)
         cap = QLabel(label)
         cap.setObjectName("cardSub")
@@ -1127,13 +1003,15 @@ class StatBox(QVBoxLayout):
         self.addWidget(self.value)
         self.addWidget(cap)
 
+    def _apply_color(self, color):
+        self.value.setStyleSheet(
+            f"color:{color}; font-size:{self._font_px}px; font-weight:700;"
+        )
+
     def set(self, text, color=None):
         self.value.setText(text)
         if color:
-            self.value.setStyleSheet(
-                self.value.styleSheet().split("color:")[0] + f"color:{color};" +
-                ";".join(self.value.styleSheet().split(";")[1:])
-            )
+            self._apply_color(color)
 
 
 class GamePanel(QFrame):
