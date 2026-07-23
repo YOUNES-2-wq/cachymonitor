@@ -54,6 +54,44 @@ Dès qu'un jeu tourne et écrit un log, CachyMonitor affiche le FPS automatiquem
 
 > Les dossiers cherchés sont configurables en haut du script (`FPS_LOG_DIRS`).
 
+## Compatibilité matérielle
+
+CachyMonitor vise **tout matériel sous Linux**, mais tout n'est pas vérifié.
+
+| | CPU | GPU |
+|---|---|---|
+| **AMD** | ✅ testé (`k10temp`) | ⚠️ écrit, non testé (`amdgpu` via `/sys`) |
+| **Intel** | ⚠️ écrit, non testé (`coretemp`) | ⚠️ partiel, non testé (`i915`/`xe`) |
+| **NVIDIA** | — | ✅ testé (`nvidia-smi`) |
+
+**Seule configuration réellement vérifiée** : AMD Ryzen 5 5600 + NVIDIA RTX 3060,
+sous CachyOS / KDE Plasma / Wayland.
+
+Le reste est écrit d'après la documentation du noyau, sans matériel sous la main
+pour l'exécuter. L'application ne plantera pas si un capteur manque : la valeur
+concernée affiche simplement `—`.
+
+À noter pour les GPU Intel : le taux d'occupation n'est pas exposé dans `/sys`
+et demande `intel_gpu_top` avec les droits root. Seuls le nom, la température et
+la fréquence sont donc lus. La VRAM est de la mémoire partagée, sans compteur
+dédié.
+
+### Vous avez un autre matériel ? Vos retours sont les bienvenus
+
+Radeon, GPU intégré AMD, CPU Intel, iGPU Intel… si vous testez, dites-moi ce que
+ça donne — c'est le seul moyen de valider ces chemins de code.
+
+```bash
+./scripts/hw-report.sh
+```
+
+Ce script est en **lecture seule**, ne demande pas root et n'affiche aucune
+donnée personnelle. Collez sa sortie dans une issue :
+
+**https://github.com/YOUNES-2-wq/cachymonitor/issues**
+
+Précisez surtout ce qui affiche `—` ou une valeur qui vous paraît fausse.
+
 ## Licence
 
 [MIT](LICENSE) — tu peux utiliser, modifier et redistribuer ce code

@@ -5,6 +5,28 @@ CachyMonitor — moniteur système pour CachyOS (CPU / GPU / RAM / températures
 Dépendance unique : PySide6 (pacman -S pyside6).
 Tout est lu depuis /proc, /sys (hwmon), nvidia-smi et les logs MangoHud.
 Aucune autre librairie : les graphes sont dessinés au QPainter.
+
+--------------------------------------------------------------------------
+MATÉRIEL — ce qui est réellement testé
+--------------------------------------------------------------------------
+Le code vise tous les matériels, mais il n'a été VÉRIFIÉ que sur une seule
+configuration :
+
+    CPU AMD Ryzen 5 5600 (capteur k10temp) + GPU NVIDIA RTX 3060 (nvidia-smi)
+    CachyOS / KDE Plasma / Wayland
+
+Écrit d'après la documentation du noyau mais JAMAIS EXÉCUTÉ sur le matériel
+correspondant :
+
+  * température CPU Intel      -> capteur « coretemp »
+  * GPU AMD (Radeon)           -> pilote amdgpu via /sys  [_gpu_amd()]
+  * GPU Intel (i915 / xe)      -> partiel, /sys           [_gpu_intel()]
+
+Si vous testez sur l'une de ces configurations, les retours sont les
+bienvenus : ouvrez une « issue » avec la sortie de `scripts/hw-report.sh`
+(ou simplement une capture de l'application).
+https://github.com/YOUNES-2-wq/cachymonitor/issues
+--------------------------------------------------------------------------
 """
 
 import os
@@ -98,6 +120,54 @@ def _find_hwmon(name):
     return None
 
 
+def _read_first(path, default=None):
+    """Lit un fichier sysfs et renvoie son contenu nettoyé (ou default)."""
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except (OSError, ValueError):
+        return default
+
+
+# Pilotes de température CPU, par ordre de préférence.
+#   k10temp  : AMD (Zen / Ryzen / Threadripper)
+#   zenpower : pilote AMD alternatif (paquet AUR)
+#   coretemp : Intel
+#   cpu_thermal / acpitz : repli générique (ARM, machines virtuelles, portables)
+CPU_TEMP_DRIVERS = ("k10temp", "zenpower", "coretemp", "cpu_thermal", "acpitz")
+
+# Libellés de capteurs correspondant à la température « globale » du CPU.
+#   Tctl/Tdie  : AMD          Package id 0 : Intel
+CPU_TEMP_LABELS = ("tctl", "tdie", "package id 0", "cpu")
+
+
+def find_cpu_temp_file():
+    """Trouve le fichier sysfs de la température CPU, quel que soit le matériel.
+
+    On cherche un pilote connu (AMD, Intel, générique), puis dans ce pilote le
+    capteur qui représente le processeur entier plutôt qu'un cœur isolé : son
+    libellé (tempN_label) vaut Tctl/Tdie chez AMD, « Package id 0 » chez Intel.
+    Sans libellé exploitable, on retombe sur temp1_input.
+    """
+    if IS_WINDOWS:
+        return None
+    for driver in CPU_TEMP_DRIVERS:
+        hw = _find_hwmon(driver)
+        if not hw:
+            continue
+        # 1) On privilégie le capteur « paquet » via son libellé.
+        for label_file in sorted(glob.glob(os.path.join(hw, "temp*_label"))):
+            label = (_read_first(label_file) or "").lower()
+            if any(k in label for k in CPU_TEMP_LABELS):
+                cand = label_file.replace("_label", "_input")
+                if os.path.exists(cand):
+                    return cand
+        # 2) Sinon, le premier capteur disponible.
+        for cand in sorted(glob.glob(os.path.join(hw, "temp*_input"))):
+            return cand
+    return None
+
+
 class CpuReader:
     """Usage CPU (total + par cœur), fréquence et température."""
 
@@ -111,13 +181,8 @@ class CpuReader:
                 pass
         else:
             self._prev = self._read_stat()
-            self._k10 = _find_hwmon("k10temp")
-            # Sur k10temp, Tctl est généralement temp1_input.
-            self._temp_file = None
-            if self._k10:
-                cand = os.path.join(self._k10, "temp1_input")
-                if os.path.exists(cand):
-                    self._temp_file = cand
+            # Détection indépendante du constructeur (AMD, Intel, générique).
+            self._temp_file = find_cpu_temp_file()
 
     @staticmethod
     def _read_stat():
@@ -320,7 +385,70 @@ def read_ram_name():
     return f"{cap} · {extra}" if extra else cap
 
 
-def read_gpu():
+# Identifiants PCI des constructeurs de cartes graphiques.
+PCI_VENDOR_NVIDIA = "0x10de"
+PCI_VENDOR_AMD = "0x1002"
+PCI_VENDOR_INTEL = "0x8086"
+
+
+def _drm_cards():
+    """Cartes graphiques vues par le noyau : [(chemin_device, id_constructeur)].
+
+    Note : l'index n'est pas toujours 0 (sur la machine de dev c'est 'card1'),
+    d'où le glob plutôt qu'un chemin en dur.
+    """
+    cards = []
+    for dev in sorted(glob.glob("/sys/class/drm/card[0-9]*/device")):
+        vendor = _read_first(os.path.join(dev, "vendor"))
+        if vendor:
+            cards.append((dev, vendor.lower()))
+    return cards
+
+
+def _gpu_name_lspci(dev_path, fallback):
+    """Nom commercial du GPU via lspci (paquet pciutils, présent par défaut)."""
+    slot = os.path.basename(os.path.realpath(dev_path))  # ex: 0000:08:00.0
+    if slot.startswith("0000:"):
+        slot = slot[5:]
+    try:
+        out = subprocess.run(["lspci", "-s", slot], capture_output=True,
+                             text=True, timeout=3).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return fallback
+    # "08:00.0 VGA compatible controller: NVIDIA Corporation GA106 [GeForce RTX 3060]"
+    if ":" in out:
+        name = out.split(":")[-1].strip()
+        # L'ordre compte : on retire d'abord « (rev a1) », sinon l'ancrage de fin
+        # de l'expression suivante ne trouve jamais les crochets.
+        name = re.sub(r"\s*\(rev [^)]+\)", "", name)
+        # lspci met le nom commercial entre crochets :
+        #   « Navi 31 [Radeon RX 7900 XTX] » -> « Radeon RX 7900 XTX »
+        m = re.search(r"\[([^\]]+)\]\s*$", name)
+        if m:
+            name = m.group(1)
+        for noise in ("Corporation ", "Advanced Micro Devices, Inc. ",
+                      "[AMD/ATI] ", "[AMD] ", "Intel Corporation "):
+            name = name.replace(noise, "")
+        if name:
+            return name.strip()
+    return fallback
+
+
+def _hwmon_of(dev_path):
+    """hwmon rattaché à une carte (température / conso / fréquence)."""
+    for hw in glob.glob(os.path.join(dev_path, "hwmon", "hwmon*")):
+        return hw
+    return None
+
+
+def _num(x):
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def _gpu_nvidia():
     """GPU NVIDIA via nvidia-smi (usage, temp, VRAM, clock, power)."""
     query = "name,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.gr,power.draw"
     cmd = "nvidia-smi"
@@ -336,28 +464,112 @@ def read_gpu():
             capture_output=True, text=True, timeout=4,
         ).stdout.strip().splitlines()
     except (OSError, subprocess.SubprocessError):
-        return _gpu_none()
+        return None
     if not out:
-        return _gpu_none()
+        return None
     fields = [x.strip() for x in out[0].split(",")]
     if len(fields) < 7:
-        return _gpu_none()
-
-    def num(x):
-        try:
-            return float(x)
-        except ValueError:
-            return None
-
+        return None
     return {
         "gpu_name": fields[0],
-        "gpu_pct": num(fields[1]) or 0.0,
-        "gpu_temp": num(fields[2]),
-        "vram_used": num(fields[3]) or 0.0,   # MiB
-        "vram_total": num(fields[4]) or 0.0,
-        "gpu_clock": num(fields[5]),
-        "gpu_power": num(fields[6]),
+        "gpu_pct": _num(fields[1]) or 0.0,
+        "gpu_temp": _num(fields[2]),
+        "vram_used": _num(fields[3]) or 0.0,   # MiB
+        "vram_total": _num(fields[4]) or 0.0,
+        "gpu_clock": _num(fields[5]),
+        "gpu_power": _num(fields[6]),
     }
+
+
+def _gpu_amd():
+    """GPU AMD via le pilote amdgpu, qui expose tout dans /sys (aucun outil externe).
+
+    ⚠️ Écrit d'après la documentation du noyau, NON TESTÉ sur une vraie Radeon
+    (machine de développement équipée en NVIDIA). Retours bienvenus.
+    """
+    for dev, vendor in _drm_cards():
+        if vendor != PCI_VENDOR_AMD:
+            continue
+        busy = _num(_read_first(os.path.join(dev, "gpu_busy_percent")))
+        vram_total = _num(_read_first(os.path.join(dev, "mem_info_vram_total")))
+        vram_used = _num(_read_first(os.path.join(dev, "mem_info_vram_used")))
+        # Une carte AMD sans ces fichiers = pilote trop ancien : on passe.
+        if busy is None and vram_total is None:
+            continue
+
+        temp = power = clock = None
+        hw = _hwmon_of(dev)
+        if hw:
+            t = _num(_read_first(os.path.join(hw, "temp1_input")))
+            temp = t / 1000.0 if t is not None else None          # m°C -> °C
+            p = _num(_read_first(os.path.join(hw, "power1_average")))
+            if p is None:
+                p = _num(_read_first(os.path.join(hw, "power1_input")))
+            power = p / 1e6 if p is not None else None            # µW -> W
+            f = _num(_read_first(os.path.join(hw, "freq1_input")))
+            clock = f / 1e6 if f is not None else None            # Hz -> MHz
+
+        return {
+            "gpu_name": _gpu_name_lspci(dev, "GPU AMD"),
+            "gpu_pct": busy or 0.0,
+            "gpu_temp": temp,
+            "vram_used": (vram_used / 1024 / 1024) if vram_used else 0.0,   # octets -> MiB
+            "vram_total": (vram_total / 1024 / 1024) if vram_total else 0.0,
+            "gpu_clock": clock,
+            "gpu_power": power,
+        }
+    return None
+
+
+def _gpu_intel():
+    """GPU Intel (i915 / xe). Volontairement partiel.
+
+    Le taux d'occupation d'un GPU Intel n'est pas exposé dans /sys : il faut
+    intel_gpu_top, qui réclame les privilèges root. On se limite donc à ce qui
+    est lisible sans droits particuliers (nom, température, fréquence).
+    La VRAM est de la mémoire système partagée : pas de compteur dédié.
+
+    ⚠️ NON TESTÉ sur du matériel Intel. Retours bienvenus.
+    """
+    for dev, vendor in _drm_cards():
+        if vendor != PCI_VENDOR_INTEL:
+            continue
+        temp = clock = None
+        hw = _hwmon_of(dev)
+        if hw:
+            t = _num(_read_first(os.path.join(hw, "temp1_input")))
+            temp = t / 1000.0 if t is not None else None
+        f = _num(_read_first(os.path.join(dev, "..", "gt_cur_freq_mhz")))
+        if f is None:
+            f = _num(_read_first(os.path.join(dev, "gt_cur_freq_mhz")))
+        clock = f
+        return {
+            "gpu_name": _gpu_name_lspci(dev, "GPU Intel"),
+            "gpu_pct": 0.0,          # indisponible sans root
+            "gpu_temp": temp,
+            "vram_used": 0.0,        # mémoire partagée avec la RAM
+            "vram_total": 0.0,
+            "gpu_clock": clock,
+            "gpu_power": None,
+        }
+    return None
+
+
+def read_gpu():
+    """Lit le GPU, quel que soit le constructeur.
+
+    On essaie NVIDIA (nvidia-smi) puis AMD et Intel (/sys). Le premier lecteur
+    qui renvoie quelque chose gagne ; si aucun ne répond, l'interface affiche
+    « GPU indisponible » au lieu de planter.
+    """
+    for reader in (_gpu_nvidia, _gpu_amd, _gpu_intel):
+        try:
+            data = reader()
+        except Exception:
+            data = None          # un GPU exotique ne doit jamais faire tomber l'app
+        if data:
+            return data
+    return _gpu_none()
 
 
 def _gpu_none():
