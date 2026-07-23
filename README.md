@@ -84,21 +84,35 @@ et demande `intel_gpu_top` avec les droits root. Seuls le nom, la température e
 la fréquence sont donc lus. La VRAM est de la mémoire partagée, sans compteur
 dédié.
 
-### Vous avez un autre matériel ? Vos retours sont les bienvenus
+### Vos retours sont les bienvenus 💬
 
-Radeon, GPU intégré AMD, CPU Intel, iGPU Intel… si vous testez, dites-moi ce que
-ça donne — c'est le seul moyen de valider ces chemins de code.
+Pas besoin d'être développeur, ni de lancer quoi que ce soit : si vous voulez
+simplement **laisser un commentaire, poser une question ou dire quel matériel
+vous avez**, c'est ici, en un clic :
+
+**➡️ [Laisser un commentaire (Discussions)](https://github.com/YOUNES-2-wq/cachymonitor/discussions)**
+
+Radeon, GPU intégré AMD, CPU Intel, iGPU Intel… vos retours sont précieux : c'est
+le seul moyen de valider les chemins de code que je n'ai pas pu tester moi-même.
+Dites-moi simplement ce qui s'affiche correctement, et surtout ce qui montre `—`
+ou une valeur qui vous paraît fausse.
+
+<details>
+<summary>💡 Optionnel : joindre un rapport matériel détaillé</summary>
+
+Si vous voulez m'aider davantage, un petit script génère un rapport de vos
+capteurs. Il est **en lecture seule**, ne demande **jamais** les droits root et
+n'affiche **aucune** donnée personnelle — vous pouvez l'ouvrir et le lire avant
+de le lancer :
 
 ```bash
-./scripts/hw-report.sh
+cat scripts/hw-report.sh   # pour l'inspecter d'abord, en toute confiance
+./scripts/hw-report.sh     # puis le lancer si vous le souhaitez
 ```
 
-Ce script est en **lecture seule**, ne demande pas root et n'affiche aucune
-donnée personnelle. Collez sa sortie dans une issue :
-
-**https://github.com/YOUNES-2-wq/cachymonitor/issues**
-
-Précisez surtout ce qui affiche `—` ou une valeur qui vous paraît fausse.
+Collez sa sortie dans un commentaire ou une
+[issue](https://github.com/YOUNES-2-wq/cachymonitor/issues).
+</details>
 
 ## Licence
 
