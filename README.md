@@ -16,6 +16,28 @@ Je suis un gamer et j'aime jouer à plusieurs jeux sur CachyOS. Je cherchais une
 
 Comme je n'ai aucune formation de développeur, j'ai sollicité l'aide de mon ami IA, Claude, qui m'a énormément aidé. Le résultat a été tellement bluffant que j'ai eu envie de partager cette application avec toute personne qui souhaite l'essayer.
 
+## Une première du genre 🚀
+
+CachyMonitor s'appuie sur **[MangoHud](https://github.com/flightlessmango/MangoHud)**,
+l'outil de référence qui enregistre les performances en jeu sous Linux. Mais là où
+MangoHud affiche un **overlay par-dessus le jeu**, CachyMonitor va plus loin : il
+**transforme ces logs en véritables statistiques de session**, dans une fenêtre à part.
+
+À ma connaissance, c'est **la première application de ce genre** — une fenêtre
+compagnon, distincte du jeu, qui réunit dans une seule interface visuelle :
+
+- les **statistiques de session calculées** — 1 % low, 0,1 % low, moyenne, pics de
+  frametime (micro-saccades) et **goulot d'étranglement CPU vs GPU** ;
+- les **jauges de composants en direct** — CPU, GPU, RAM, VRAM, fréquences,
+  consommation et températures, avec courbes de tendance ;
+- le tout **sans overlay** qui s'affiche par-dessus le jeu, dans une appli légère
+  (un seul fichier Python, une seule dépendance).
+
+Les briques existaient déjà (MangoHud, Goverlay…), mais personne ne les avait
+assemblées en un **tableau de bord compagnon pensé pour le jeu**. C'est toute
+l'idée de CachyMonitor : ne pas réinventer la mesure, mais la rendre **lisible et
+analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne serait possible.
+
 ## Installation de la dépendance
 
 ```sh
