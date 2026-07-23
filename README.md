@@ -42,24 +42,39 @@ analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne 
 
 ### Depuis l'AUR (recommandé)
 
-[![AUR version](https://img.shields.io/aur/version/cachymonitor)](https://aur.archlinux.org/packages/cachymonitor)
+[![AUR version](https://img.shields.io/aur/version/cachymonitor?label=AUR&color=1793d1&cacheSeconds=600)](https://aur.archlinux.org/packages/cachymonitor)
 
-Sur CachyOS / Arch, avec un assistant AUR :
+Sur CachyOS / Arch, avec un assistant AUR — par exemple `paru` :
 
 ```sh
 paru -S cachymonitor
-# ou : yay -S cachymonitor
+```
+
+ou `yay` :
+
+```sh
+yay -S cachymonitor
 ```
 
 Puis lance **CachyMonitor** depuis ton menu d'applications, ou la commande `cachymonitor`.
 
 ### Manuellement (depuis le dépôt Git)
 
-Une seule dépendance à installer :
+Installe la dépendance unique :
 
 ```sh
 sudo pacman -S pyside6
+```
+
+Clone le dépôt :
+
+```sh
 git clone https://github.com/YOUNES-2-wq/cachymonitor.git
+```
+
+Lance l'application :
+
+```sh
 python3 cachymonitor/cachymonitor.py
 ```
 
