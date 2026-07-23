@@ -4,6 +4,12 @@ Moniteur système léger pour CachyOS : **CPU, GPU, RAM, VRAM, températures et 
 
 ![Aperçu de CachyMonitor](docs/screenshot.png)
 
+## Pourquoi CachyMonitor ?
+
+Je suis un gamer et j'aime jouer à plusieurs jeux sur CachyOS. Je cherchais une application capable de monitorer mon matériel et de me donner un maximum d'informations sur le comportement de mes composants pendant le jeu — mais je n'ai trouvé aucun moniteur système pensé spécialement pour les jeux. J'ai donc décidé de créer le mien.
+
+Comme je n'ai aucune formation de développeur, j'ai sollicité l'aide de mon ami IA, Claude, qui m'a énormément aidé. Le résultat a été tellement bluffant que j'ai eu envie de partager cette application avec toute personne qui souhaite l'essayer.
+
 ## Installation de la dépendance
 
 ```sh
