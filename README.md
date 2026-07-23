@@ -2,6 +2,8 @@
 
 Moniteur système léger pour CachyOS : **CPU, GPU, RAM, VRAM, températures et FPS**, avec graphes temps réel. Un seul fichier Python, une seule dépendance (PySide6).
 
+![Aperçu de CachyMonitor](docs/screenshot.png)
+
 ## Installation de la dépendance
 
 ```sh
