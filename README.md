@@ -84,18 +84,22 @@ et demande `intel_gpu_top` avec les droits root. Seuls le nom, la température e
 la fréquence sont donc lus. La VRAM est de la mémoire partagée, sans compteur
 dédié.
 
-### Vos retours sont les bienvenus 💬
+### J'ai besoin de vous 🙏
 
-Pas besoin d'être développeur, ni de lancer quoi que ce soit : si vous voulez
-simplement **laisser un commentaire, poser une question ou dire quel matériel
-vous avez**, c'est ici, en un clic :
+J'ai créé CachyMonitor seul, et je n'ai **qu'une seule machine** pour le tester
+(AMD Ryzen 5 5600 + NVIDIA RTX 3060). Autrement dit : **je n'ai aucune idée de la
+façon dont l'application se comporte sur un autre matériel que le mien.**
+
+Un Radeon, un CPU Intel, un GPU intégré… chaque configuration est différente, et
+sans vous, ces cas resteront des angles morts. C'est vraiment là que j'ai besoin
+de la communauté : **votre commentaire est le seul moyen de savoir comment l'app
+réagit sur votre matériel**, et donc de l'améliorer pour tout le monde.
+
+Pas besoin d'être développeur, ni de lancer quoi que ce soit. Un simple mot —
+« chez moi tout marche » ou « la température GPU affiche `—` » — m'aide déjà
+énormément. Racontez-moi votre config et ce que vous voyez, ça compte pour moi 🙂
 
 **➡️ [Laisser un commentaire (Discussions)](https://github.com/YOUNES-2-wq/cachymonitor/discussions)**
-
-Radeon, GPU intégré AMD, CPU Intel, iGPU Intel… vos retours sont précieux : c'est
-le seul moyen de valider les chemins de code que je n'ai pas pu tester moi-même.
-Dites-moi simplement ce qui s'affiche correctement, et surtout ce qui montre `—`
-ou une valeur qui vous paraît fausse.
 
 <details>
 <summary>💡 Optionnel : joindre un rapport matériel détaillé</summary>
