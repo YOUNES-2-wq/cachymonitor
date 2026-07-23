@@ -1,0 +1,7 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Sauvegardes manuelles faites avant grosse modif
+*.bak-*
+*.bak
