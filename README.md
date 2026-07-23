@@ -53,3 +53,8 @@ Dès qu'un jeu tourne et écrit un log, CachyMonitor affiche le FPS automatiquem
 (et repasse à « — » quelques secondes après la fermeture du jeu).
 
 > Les dossiers cherchés sont configurables en haut du script (`FPS_LOG_DIRS`).
+
+## Licence
+
+[MIT](LICENSE) — tu peux utiliser, modifier et redistribuer ce code
+librement, à condition de conserver la mention de copyright.
