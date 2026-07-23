@@ -38,25 +38,33 @@ assemblées en un **tableau de bord compagnon pensé pour le jeu**. C'est toute
 l'idée de CachyMonitor : ne pas réinventer la mesure, mais la rendre **lisible et
 analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne serait possible.
 
-## Installation de la dépendance
+## Installation
+
+### Depuis l'AUR (recommandé)
+
+[![AUR version](https://img.shields.io/aur/version/cachymonitor)](https://aur.archlinux.org/packages/cachymonitor)
+
+Sur CachyOS / Arch, avec un assistant AUR :
+
+```sh
+paru -S cachymonitor
+# ou : yay -S cachymonitor
+```
+
+Puis lance **CachyMonitor** depuis ton menu d'applications, ou la commande `cachymonitor`.
+
+### Manuellement (depuis le dépôt Git)
+
+Une seule dépendance à installer :
 
 ```sh
 sudo pacman -S pyside6
+git clone https://github.com/YOUNES-2-wq/cachymonitor.git
+python3 cachymonitor/cachymonitor.py
 ```
 
-(Tout le reste — `nvidia-smi`, `sensors`, `mangohud` — est déjà présent sur ta machine.)
-
-## Lancer
-
-```sh
-python3 ~/cachymonitor/cachymonitor.py
-```
-
-Pour l'avoir dans le menu KDE :
-
-```sh
-cp ~/cachymonitor/cachymonitor.desktop ~/.local/share/applications/
-```
+> Optionnel selon ton matériel : `mangohud` (statistiques en jeu), `nvidia-utils`
+> (GPU NVIDIA), `pciutils` (nom du GPU), `dmidecode` (type/vitesse RAM).
 
 ## Sources des données
 
