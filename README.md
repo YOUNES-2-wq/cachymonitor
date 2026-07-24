@@ -42,7 +42,17 @@ analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne 
 
 ## Installation
 
-### Depuis l'AUR (recommandé)
+> **CachyMonitor fonctionne sur n'importe quelle distribution Linux** (Arch,
+> CachyOS, Fedora, Ubuntu, Debian, openSUSE, Pop!\_OS…). Il ne lit que des sources
+> standard du noyau (`/proc`, `/sys`, `hwmon`), `nvidia-smi` et les logs MangoHud :
+> rien n'est spécifique à une distribution. La seule différence entre distros, c'est
+> la manière d'installer la dépendance (**PySide6**).
+>
+> - **Distros basées sur Arch** (CachyOS, Manjaro, EndeavourOS…) → installation en une
+>   commande via l'**AUR** (ci-dessous).
+> - **Toutes les autres distros** → installation manuelle depuis Git (section plus bas).
+
+### Depuis l'AUR (recommandé, distros Arch)
 
 [![AUR version](https://img.shields.io/aur/version/cachymonitor?label=AUR&color=1793d1&cacheSeconds=600)](https://aur.archlinux.org/packages/cachymonitor)
 
@@ -60,28 +70,45 @@ yay -S cachymonitor
 
 Puis lance **CachyMonitor** depuis ton menu d'applications, ou la commande `cachymonitor`.
 
-### Manuellement (depuis le dépôt Git)
+### Manuellement, sur n'importe quelle distribution
 
-Installe la dépendance unique :
+Fonctionne partout : il suffit de **Python 3** (déjà présent sur toute distro) et de
+**PySide6**.
+
+**1. Installe PySide6** avec le gestionnaire de paquets de ta distro :
 
 ```sh
+# Arch / CachyOS / Manjaro
 sudo pacman -S pyside6
+
+# Fedora
+sudo dnf install python3-pyside6
+
+# Ubuntu / Debian / Pop!_OS / Mint
+sudo apt install python3-pyside6
+
+# openSUSE
+sudo zypper install python3-PySide6
 ```
 
-Clone le dépôt :
+> Si PySide6 n'est pas packagé sur ta distro, tu peux toujours l'installer avec pip
+> (idéalement dans un environnement virtuel) : `pip install PySide6`.
+
+**2. Clone le dépôt :**
 
 ```sh
 git clone https://github.com/YOUNES-2-wq/cachymonitor.git
 ```
 
-Lance l'application :
+**3. Lance l'application :**
 
 ```sh
 python3 cachymonitor/cachymonitor.py
 ```
 
 > Optionnel selon ton matériel : `mangohud` (statistiques en jeu), `nvidia-utils`
-> (GPU NVIDIA), `pciutils` (nom du GPU), `dmidecode` (type/vitesse RAM).
+> (GPU NVIDIA), `pciutils` (nom du GPU), `dmidecode` (type/vitesse RAM). Chacun de ces
+> paquets s'installe de la même façon selon ta distro (`dnf`, `apt`, `zypper`…).
 
 ## Sources des données
 
@@ -100,7 +127,7 @@ Le FPS provient des logs MangoHud. Le plus simple : logging automatique.
 Ajoute à `~/.config/MangoHud/MangoHud.conf` :
 
 ```ini
-output_folder=/home/younescachy/.local/share/MangoHud/logs
+output_folder=~/.local/share/MangoHud/logs
 autostart_log=1
 log_interval=100
 ```

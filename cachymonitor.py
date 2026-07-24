@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-CachyMonitor — moniteur système pour CachyOS (CPU / GPU / RAM / températures / FPS).
+CachyMonitor — moniteur système gaming pour Linux (CPU / GPU / RAM / températures / FPS).
 
-Dépendance unique : PySide6 (pacman -S pyside6).
-Tout est lu depuis /proc, /sys (hwmon), nvidia-smi et les logs MangoHud.
+Dépendance unique : PySide6 (fonctionne sur toute distribution Linux).
+Tout est lu depuis /proc, /sys (hwmon), nvidia-smi et les logs MangoHud —
+des sources standard du noyau Linux, rien de spécifique à une distribution.
 Aucune autre librairie : les graphes sont dessinés au QPainter.
 
 --------------------------------------------------------------------------
