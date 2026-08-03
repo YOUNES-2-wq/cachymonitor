@@ -41,10 +41,11 @@ from collections import deque
 from PySide6.QtCore import Qt, QThread, Signal, QPointF, QRectF, QSettings
 from PySide6.QtGui import (
     QPainter, QColor, QPainterPath, QPen, QBrush, QFont, QLinearGradient, QIcon,
+    QPalette,
 )
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QCheckBox, QSpinBox, QSizePolicy,
+    QCheckBox, QSpinBox, QSizePolicy, QComboBox, QToolButton,
 )
 
 # ----------------------------------------------------------------------------- #
@@ -75,30 +76,103 @@ FPS_LOG_DIRS = [
 ]
 FPS_STALE_SECONDS = 5  # au-delà, on considère qu'aucun jeu ne tourne
 
-# Couleurs d'accent par métrique
-C_CPU = "#4ca3ff"
-C_GPU = "#5ddc7f"
-C_RAM = "#b48cff"
-C_VRAM = "#ff9d5c"
-C_FPS = "#ffd23f"
-C_FT = "#ff6b8a"       # frametime (les pics = micro-saccades)
-C_OK = "#5ddc7f"
-C_WARN = "#ffb347"
-C_BAD = "#ff5f56"
-C_BG = "#13151b"
-C_CARD = "#1c1f29"
-C_TEXT = "#e6e9f0"
-C_MUTED = "#7d8499"
+# ----------------------------------------------------------------------------- #
+#  Thèmes
+# ----------------------------------------------------------------------------- #
+#
+# Aucune couleur n'est écrite en dur dans le reste du fichier : le code désigne
+# un « rôle » (cpu, texte, alerte…) et col() renvoie la teinte du thème actif.
+# Changer de thème se résume donc à changer de dictionnaire puis à redessiner.
+#
+# Le thème clair ne se contente pas d'inverser le fond : les accents y sont
+# assombris, sinon un jaune ou un vert pensés pour du noir deviennent illisibles
+# sur du blanc.
+
+THEMES = {
+    "sombre": {
+        "cpu": "#4ca3ff",
+        "gpu": "#5ddc7f",
+        "ram": "#b48cff",
+        "vram": "#ff9d5c",
+        "fps": "#ffd23f",
+        "ft": "#ff6b8a",    # frametime (les pics = micro-saccades)
+        "ok": "#5ddc7f",
+        "warn": "#ffb347",
+        "bad": "#ff5f56",
+        "bg": "#13151b",
+        "card": "#1c1f29",
+        "text": "#e6e9f0",
+        "muted": "#7d8499",
+        "ring": "#272b36",   # anneau de fond des jauges
+        "border": "#2a2e3a",
+    },
+    "clair": {
+        "cpu": "#1668d0",
+        "gpu": "#12833f",
+        "ram": "#7343c8",
+        "vram": "#c25d0a",
+        "fps": "#a6740a",
+        "ft": "#cf2f56",
+        "ok": "#12833f",
+        "warn": "#b06a00",
+        "bad": "#c9271c",
+        "bg": "#eef1f6",
+        "card": "#ffffff",
+        "text": "#1b1f2a",
+        "muted": "#66707f",
+        "ring": "#dde2ec",
+        "border": "#ccd3e0",
+    },
+}
+
+# Modes proposés à l'utilisateur. « système » suit le réglage du bureau.
+THEME_MODES = ("systeme", "sombre", "clair")
+THEME_LABELS = {"systeme": "Système", "sombre": "Sombre", "clair": "Clair"}
+DEFAULT_THEME = "systeme"
+
+_palette = THEMES["sombre"]
 
 
-def temp_color(t):
+def col(role):
+    """Couleur du rôle demandé dans le thème actif."""
+    return _palette[role]
+
+
+def set_palette(theme):
+    """Active une palette ('sombre' ou 'clair')."""
+    global _palette
+    _palette = THEMES[theme]
+
+
+def system_theme():
+    """Thème du bureau, via Qt. Replié sur 'sombre' si le bureau ne dit rien."""
+    app = QApplication.instance()
+    if app is None:
+        return "sombre"
+    return "clair" if app.styleHints().colorScheme() == Qt.ColorScheme.Light else "sombre"
+
+
+def resolve_theme(mode):
+    """Traduit un mode ('systeme'/'sombre'/'clair') en palette réelle."""
+    return system_theme() if mode == "systeme" else mode
+
+
+def temp_role(t):
+    """Rôle de couleur d'une température (None = inconnue)."""
     if t is None:
-        return C_MUTED
+        return "muted"
     if t >= 85:
-        return "#ff5c5c"
+        return "bad"
     if t >= 70:
-        return "#ff9d5c"
-    return "#5ddc7f"
+        return "warn"
+    return "ok"
+
+
+def _as_bool(v):
+    """QSettings rend les booléens en texte selon le backend."""
+    if isinstance(v, str):
+        return v.lower() in ("true", "1", "yes")
+    return bool(v)
 
 
 # ----------------------------------------------------------------------------- #
@@ -678,16 +752,16 @@ class GameReader:
 
 
 def bottleneck(cpu_load, gpu_load):
-    """Devine ce qui limite les FPS. Renvoie (texte, couleur)."""
+    """Devine ce qui limite les FPS. Renvoie (texte, rôle de couleur)."""
     if cpu_load is None or gpu_load is None:
         return None, None
     if gpu_load >= 95:
-        return "GPU à fond — limité par le GPU", C_GPU
+        return "GPU à fond — limité par le GPU", "gpu"
     if cpu_load >= 85 and gpu_load < 90:
-        return "CPU à fond — limité par le CPU", C_CPU
+        return "CPU à fond — limité par le CPU", "cpu"
     if gpu_load < 80 and cpu_load < 80:
-        return "Ni CPU ni GPU saturés — limité par le cap FPS / vsync", C_MUTED
-    return "Charge équilibrée", C_MUTED
+        return "Ni CPU ni GPU saturés — limité par le cap FPS / vsync", "muted"
+    return "Charge équilibrée", "muted"
 
 
 # ----------------------------------------------------------------------------- #
@@ -730,9 +804,9 @@ class Sampler(QThread):
 class Sparkline(QWidget):
     """Courbe d'historique remplie. max_value=None => échelle auto."""
 
-    def __init__(self, color, max_value=100.0):
+    def __init__(self, role, max_value=100.0):
         super().__init__()
-        self.color = QColor(color)
+        self.role = role
         self.max_value = max_value
         self.data = deque(maxlen=HISTORY)
         self.setMinimumHeight(54)
@@ -746,6 +820,7 @@ class Sparkline(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
+        color = QColor(col(self.role))
 
         if not self.data:
             return
@@ -766,7 +841,7 @@ class Sparkline(QWidget):
             return QPointF(i * step, h - (min(v, vmax) / vmax) * (h - 4) - 2)
 
         # On découpe en segments contigus (sauts sur les None).
-        line = QPen(self.color, 2)
+        line = QPen(color, 2)
         line.setJoinStyle(Qt.RoundJoin)
         i = 0
         while i < n:
@@ -789,10 +864,10 @@ class Sparkline(QWidget):
                 fill.lineTo(QPointF(seg[0][0] * step, h))
                 fill.closeSubpath()
                 grad = QLinearGradient(0, 0, 0, h)
-                c = QColor(self.color)
+                c = QColor(color)
                 c.setAlpha(90)
                 grad.setColorAt(0, c)
-                c2 = QColor(self.color)
+                c2 = QColor(color)
                 c2.setAlpha(0)
                 grad.setColorAt(1, c2)
                 p.fillPath(fill, QBrush(grad))
@@ -807,9 +882,9 @@ class FrametimeGraph(QWidget):
     tout ce qui dépasse nettement se voit immédiatement.
     """
 
-    def __init__(self, color=C_FT):
+    def __init__(self, role="ft"):
         super().__init__()
-        self.color = QColor(color)
+        self.role = role
         self.data = []
         self.target_ms = 1000.0 / DEFAULT_FPS_TARGET
         self.setMinimumHeight(70)
@@ -826,9 +901,11 @@ class FrametimeGraph(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
+        color = QColor(col(self.role))
+        muted = QColor(col("muted"))
 
         if len(self.data) < 2:
-            p.setPen(QColor(C_MUTED))
+            p.setPen(muted)
             p.drawText(self.rect(), Qt.AlignCenter, "en attente de données…")
             return
 
@@ -841,10 +918,10 @@ class FrametimeGraph(QWidget):
 
         # Ligne de repère (cible)
         ty = y_of(self.target_ms)
-        pen = QPen(QColor(C_MUTED), 1, Qt.DashLine)
+        pen = QPen(muted, 1, Qt.DashLine)
         p.setPen(pen)
         p.drawLine(0, int(ty), w, int(ty))
-        p.setPen(QColor(C_MUTED))
+        p.setPen(muted)
         f = p.font(); f.setPointSize(8); p.setFont(f)
         p.drawText(4, max(10, int(ty) - 3), f"{self.target_ms:.1f} ms")
 
@@ -860,19 +937,20 @@ class FrametimeGraph(QWidget):
         fill.lineTo(0, h)
         fill.closeSubpath()
         grad = QLinearGradient(0, 0, 0, h)
-        c = QColor(self.color); c.setAlpha(110)
+        c = QColor(color); c.setAlpha(110)
         grad.setColorAt(0, c)
-        c2 = QColor(self.color); c2.setAlpha(10)
+        c2 = QColor(color); c2.setAlpha(10)
         grad.setColorAt(1, c2)
         p.fillPath(fill, QBrush(grad))
 
-        p.setPen(QPen(self.color, 1.6))
+        p.setPen(QPen(color, 1.6))
         p.drawPath(path)
 
         # Marqueurs sur les pics importants (> 2x la cible)
         spike = self.target_ms * 2.0
-        p.setPen(QPen(QColor(C_BAD), 1))
-        p.setBrush(QBrush(QColor(C_BAD)))
+        bad = QColor(col("bad"))
+        p.setPen(QPen(bad, 1))
+        p.setBrush(QBrush(bad))
         for i, v in enumerate(self.data):
             if v >= spike:
                 p.drawEllipse(QPointF(i * step, y_of(v)), 2.2, 2.2)
@@ -881,21 +959,21 @@ class FrametimeGraph(QWidget):
 class CircularGauge(QWidget):
     """Jauge circulaire : anneau de progression + valeur au centre."""
 
-    def __init__(self, color):
+    def __init__(self, role):
         super().__init__()
-        self.color = QColor(color)
+        self.role = role
         self.percent = 0.0
         self.big = "—"
         self.sub = ""
-        self.sub_color = QColor(C_MUTED)
+        self.sub_role = "muted"
         self.setMinimumSize(150, 150)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-    def set(self, percent, big, sub, sub_color=None):
+    def set(self, percent, big, sub, sub_role=None):
         self.percent = max(0.0, min(100.0, percent))
         self.big = big
         self.sub = sub
-        self.sub_color = QColor(sub_color) if sub_color else QColor(C_MUTED)
+        self.sub_role = sub_role or "muted"
         self.update()
 
     def paintEvent(self, _):
@@ -913,20 +991,20 @@ class CircularGauge(QWidget):
         )
 
         # anneau de fond
-        bg = QPen(QColor("#272b36"), thick)
+        bg = QPen(QColor(col("ring")), thick)
         bg.setCapStyle(Qt.RoundCap)
         p.setPen(bg)
         p.drawArc(rect, 0, 360 * 16)
 
         # arc de progression (départ en haut, sens horaire)
-        pen = QPen(self.color, thick)
+        pen = QPen(QColor(col(self.role)), thick)
         pen.setCapStyle(Qt.RoundCap)
         p.setPen(pen)
         span = int(-self.percent / 100.0 * 360 * 16)
         p.drawArc(rect, 90 * 16, span)
 
         # valeur centrale
-        p.setPen(QColor(C_TEXT))
+        p.setPen(QColor(col("text")))
         f = QFont()
         f.setPointSizeF(max(14, side * 0.16))
         f.setBold(True)
@@ -935,7 +1013,7 @@ class CircularGauge(QWidget):
         p.drawText(big_rect, Qt.AlignCenter, self.big)
 
         # sous-texte (peut contenir plusieurs lignes via \n)
-        p.setPen(self.sub_color)
+        p.setPen(QColor(col(self.sub_role)))
         sf = QFont()
         sf.setPointSizeF(max(8, side * 0.058))
         p.setFont(sf)
@@ -949,19 +1027,19 @@ class CircularGauge(QWidget):
 class GaugeCard(QFrame):
     """Carte contenant un titre et une jauge circulaire."""
 
-    def __init__(self, title, color):
+    def __init__(self, title, role):
         super().__init__()
         self.setObjectName("card")
+        self.role = role
         lay = QVBoxLayout(self)
         lay.setContentsMargins(12, 12, 12, 12)
         lay.setSpacing(4)
 
         top = QHBoxLayout()
-        dot = QLabel("●")
-        dot.setStyleSheet(f"color:{color}; font-size:12px;")
+        self.dot = QLabel("●")
         self.title = QLabel(title)
         self.title.setObjectName("cardTitle")
-        top.addWidget(dot)
+        top.addWidget(self.dot)
         top.addWidget(self.title)
         top.addStretch()
         lay.addLayout(top)
@@ -969,34 +1047,43 @@ class GaugeCard(QFrame):
         # Nom du matériel détecté (CPU/GPU/RAM…) sous le titre
         self.hw = QLabel("")
         self.hw.setObjectName("cardHw")
-        self.hw.setStyleSheet(f"color:{color};")
         lay.addWidget(self.hw)
 
-        self.gauge = CircularGauge(color)
+        self.gauge = CircularGauge(role)
         lay.addWidget(self.gauge, 1)
 
         # Courbe de tendance : montre les pics des dernières minutes,
         # que la jauge instantanée ne peut pas révéler.
-        self.trend = Sparkline(color, max_value=100.0)
+        self.trend = Sparkline(role, max_value=100.0)
         self.trend.setMinimumHeight(28)
         self.trend.setMaximumHeight(34)
         lay.addWidget(self.trend)
 
-    def update_value(self, percent, big, sub, sub_color=None):
+        self.retheme()
+
+    def update_value(self, percent, big, sub, sub_role=None):
         """Met à jour la jauge ET la courbe de tendance d'un coup."""
-        self.gauge.set(percent, big, sub, sub_color)
+        self.gauge.set(percent, big, sub, sub_role)
         self.trend.push(percent)
+
+    def retheme(self):
+        """Réapplique les couleurs posées en ligne (le QSS global ne les couvre pas)."""
+        self.dot.setStyleSheet(f"color:{col(self.role)}; font-size:12px;")
+        self.hw.setStyleSheet(f"color:{col(self.role)};")
+        self.gauge.update()
+        self.trend.update()
 
 
 class StatBox(QVBoxLayout):
     """Petite statistique : grande valeur + libellé dessous."""
 
-    def __init__(self, label, color=C_TEXT, big=False):
+    def __init__(self, label, role="text", big=False):
         super().__init__()
         self.setSpacing(0)
         self._font_px = 34 if big else 20
+        self.role = role
         self.value = QLabel("—")
-        self._apply_color(color)
+        self.retheme()
         self.value.setAlignment(Qt.AlignCenter)
         cap = QLabel(label)
         cap.setObjectName("cardSub")
@@ -1004,15 +1091,16 @@ class StatBox(QVBoxLayout):
         self.addWidget(self.value)
         self.addWidget(cap)
 
-    def _apply_color(self, color):
-        self.value.setStyleSheet(
-            f"color:{color}; font-size:{self._font_px}px; font-weight:700;"
-        )
-
-    def set(self, text, color=None):
+    def set(self, text, role=None):
         self.value.setText(text)
-        if color:
-            self._apply_color(color)
+        if role and role != self.role:
+            self.role = role
+            self.retheme()
+
+    def retheme(self):
+        self.value.setStyleSheet(
+            f"color:{col(self.role)}; font-size:{self._font_px}px; font-weight:700;"
+        )
 
 
 class GamePanel(QFrame):
@@ -1031,27 +1119,25 @@ class GamePanel(QFrame):
 
         # En-tête : titre + nom du jeu détecté
         top = QHBoxLayout()
-        dot = QLabel("●")
-        dot.setStyleSheet(f"color:{C_FPS}; font-size:12px;")
+        self.dot = QLabel("●")
         t = QLabel("EN JEU")
         t.setObjectName("cardTitle")
-        top.addWidget(dot)
+        top.addWidget(self.dot)
         top.addWidget(t)
         top.addStretch()
         self.game = QLabel("")
         self.game.setObjectName("cardHw")
-        self.game.setStyleSheet(f"color:{C_FPS};")
         top.addWidget(self.game)
         lay.addLayout(top)
 
         # Ligne de statistiques
         stats = QHBoxLayout()
         stats.setSpacing(6)
-        self.s_fps = StatBox("FPS", C_FPS, big=True)
-        self.s_low1 = StatBox("1% LOW (60 s)", C_TEXT)
-        self.s_low01 = StatBox("0.1% LOW (60 s)", C_TEXT)
-        self.s_avg = StatBox("MOYENNE (60 s)", C_MUTED)
-        self.s_ft = StatBox("FRAMETIME", C_FT)
+        self.s_fps = StatBox("FPS", "fps", big=True)
+        self.s_low1 = StatBox("1% LOW (60 s)", "text")
+        self.s_low01 = StatBox("0.1% LOW (60 s)", "text")
+        self.s_avg = StatBox("MOYENNE (60 s)", "muted")
+        self.s_ft = StatBox("FRAMETIME", "ft")
         for s in (self.s_fps, self.s_low1, self.s_low01, self.s_avg, self.s_ft):
             stats.addLayout(s)
         lay.addLayout(stats)
@@ -1060,6 +1146,7 @@ class GamePanel(QFrame):
         self.bottle = QLabel("")
         self.bottle.setObjectName("cardSub")
         self.bottle.setAlignment(Qt.AlignCenter)
+        self.bottle_role = "muted"
         lay.addWidget(self.bottle)
 
         # Graphe de frametime
@@ -1071,14 +1158,29 @@ class GamePanel(QFrame):
         self.status.setAlignment(Qt.AlignCenter)
         lay.addWidget(self.status)
 
-    def _fps_color(self, v, target):
+        self.retheme()
+
+    def retheme(self):
+        self.dot.setStyleSheet(f"color:{col('fps')}; font-size:12px;")
+        self.game.setStyleSheet(f"color:{col('fps')};")
+        for s in (self.s_fps, self.s_low1, self.s_low01, self.s_avg, self.s_ft):
+            s.retheme()
+        self._apply_bottle()
+        self.ft_graph.update()
+
+    def _apply_bottle(self):
+        self.bottle.setStyleSheet(
+            f"color:{col(self.bottle_role)}; font-size:12px; font-weight:600;"
+        )
+
+    def _fps_role(self, v, target):
         if v is None:
-            return C_MUTED
+            return "muted"
         if v >= target * 0.85:
-            return C_OK
+            return "ok"
         if v >= target * 0.5:
-            return C_WARN
-        return C_BAD
+            return "warn"
+        return "bad"
 
     def clear(self):
         for s in (self.s_fps, self.s_low1, self.s_low01, self.s_avg, self.s_ft):
@@ -1092,23 +1194,22 @@ class GamePanel(QFrame):
         self.game.setText(g["name"])
 
         if g["live"] and g["fps"] is not None:
-            self.s_fps.set(f"{g['fps']:.0f}", self._fps_color(g["fps"], target))
+            self.s_fps.set(f"{g['fps']:.0f}", self._fps_role(g["fps"], target))
         else:
-            self.s_fps.set("—", C_MUTED)
+            self.s_fps.set("—", "muted")
 
-        self.s_low1.set(f"{g['low1']:.0f}", self._fps_color(g["low1"], target))
-        self.s_low01.set(f"{g['low01']:.0f}", self._fps_color(g["low01"], target))
+        self.s_low1.set(f"{g['low1']:.0f}", self._fps_role(g["low1"], target))
+        self.s_low01.set(f"{g['low01']:.0f}", self._fps_role(g["low01"], target))
         self.s_avg.set(f"{g['avg']:.0f}")
 
         ft = g["frametime"]
         self.s_ft.set(f"{ft:.1f} ms" if ft else "—")
 
-        txt, col = bottleneck(g["cpu_load"], g["gpu_load"])
+        txt, role = bottleneck(g["cpu_load"], g["gpu_load"])
+        self.bottle.setText(txt or "")
         if txt:
-            self.bottle.setText(txt)
-            self.bottle.setStyleSheet(f"color:{col}; font-size:12px; font-weight:600;")
-        else:
-            self.bottle.setText("")
+            self.bottle_role = role
+            self._apply_bottle()
 
         self.ft_graph.set_data(g["ft_history"], target_ms=1000.0 / target)
 
@@ -1129,50 +1230,38 @@ class MainWindow(QWidget):
         super().__init__()
         self.setWindowTitle("CachyMonitor")
         self.resize(560, 720)
+        self.theme_mode = DEFAULT_THEME
 
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(14)
 
-        # En-tête
+        # En-tête : titre + bouton qui déplie les réglages
         header = QHBoxLayout()
         title = QLabel("CachyMonitor")
         title.setObjectName("appTitle")
         header.addWidget(title)
         header.addStretch()
 
-        header.addWidget(QLabel("Intervalle"))
-        self.interval = QSpinBox()
-        self.interval.setRange(200, 5000)
-        self.interval.setSingleStep(100)
-        self.interval.setValue(DEFAULT_INTERVAL_MS)
-        self.interval.setSuffix(" ms")
-        self.interval.valueChanged.connect(self._set_interval)
-        header.addWidget(self.interval)
-
-        header.addWidget(QLabel("Cible FPS"))
-        self.fps_target = QSpinBox()
-        self.fps_target.setRange(30, 500)
-        self.fps_target.setSingleStep(5)
-        self.fps_target.setValue(DEFAULT_FPS_TARGET)
-        self.fps_target.setToolTip(
-            "Sert d'échelle aux couleurs FPS et de repère sur le graphe de frametime"
-        )
-        header.addWidget(self.fps_target)
-
-        self.ontop = QCheckBox("Au-dessus")
-        self.ontop.toggled.connect(self._toggle_ontop)
-        header.addWidget(self.ontop)
+        self.opt_button = QToolButton()
+        self.opt_button.setObjectName("optButton")
+        self.opt_button.setText("⚙  Options")
+        self.opt_button.setCheckable(True)
+        self.opt_button.setCursor(Qt.PointingHandCursor)
+        self.opt_button.toggled.connect(self._toggle_options)
+        header.addWidget(self.opt_button)
         root.addLayout(header)
+
+        root.addWidget(self._build_options())
 
         # Cartes
         grid = QGridLayout()
         grid.setSpacing(14)
 
-        self.cpu = GaugeCard("CPU", C_CPU)
-        self.gpu = GaugeCard("GPU", C_GPU)
-        self.ram = GaugeCard("RAM", C_RAM)
-        self.vram = GaugeCard("VRAM", C_VRAM)
+        self.cpu = GaugeCard("CPU", "cpu")
+        self.gpu = GaugeCard("GPU", "gpu")
+        self.ram = GaugeCard("RAM", "ram")
+        self.vram = GaugeCard("VRAM", "vram")
         self.game = GamePanel()
 
         grid.addWidget(self.cpu, 0, 0)
@@ -1191,14 +1280,94 @@ class MainWindow(QWidget):
         self.status.setObjectName("status")
         root.addWidget(self.status)
 
-        # Réglages mémorisés (intervalle, cible FPS, "au-dessus", géométrie)
+        # Réglages mémorisés (intervalle, cible FPS, thème, "au-dessus", géométrie)
         self._load_settings()
+        self.apply_theme()
+
+        # Suivi du thème du bureau quand le mode « Système » est choisi.
+        app = QApplication.instance()
+        if app is not None:
+            app.styleHints().colorSchemeChanged.connect(self._on_system_theme_changed)
 
         # Sampler
         self.sampler = Sampler()
         self.sampler.interval_ms = self.interval.value()
         self.sampler.sampled.connect(self.on_sample)
         self.sampler.start()
+
+    # -- panneau Options ---------------------------------------------------- #
+    def _build_options(self):
+        """Zone de réglages dépliable. Repliée par défaut : l'écran reste dédié
+        aux mesures, qui sont la raison d'être de l'application."""
+        self.options = QFrame()
+        self.options.setObjectName("options")
+        self.options.setVisible(False)
+
+        grid = QGridLayout(self.options)
+        grid.setContentsMargins(14, 12, 14, 12)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(10)
+
+        self.interval = QSpinBox()
+        self.interval.setRange(200, 5000)
+        self.interval.setSingleStep(100)
+        self.interval.setValue(DEFAULT_INTERVAL_MS)
+        self.interval.setSuffix(" ms")
+        self.interval.setToolTip("Fréquence de rafraîchissement des mesures")
+        self.interval.valueChanged.connect(self._set_interval)
+
+        self.fps_target = QSpinBox()
+        self.fps_target.setRange(30, 500)
+        self.fps_target.setSingleStep(5)
+        self.fps_target.setValue(DEFAULT_FPS_TARGET)
+        self.fps_target.setToolTip(
+            "Sert d'échelle aux couleurs FPS et de repère sur le graphe de frametime"
+        )
+
+        self.theme = QComboBox()
+        for mode in THEME_MODES:
+            self.theme.addItem(THEME_LABELS[mode], mode)
+        self.theme.setToolTip("« Système » suit le thème clair/sombre du bureau")
+        self.theme.currentIndexChanged.connect(self._set_theme)
+
+        self.ontop = QCheckBox("Au-dessus des autres fenêtres")
+        self.ontop.toggled.connect(self._toggle_ontop)
+
+        grid.addWidget(QLabel("Intervalle"), 0, 0)
+        grid.addWidget(self.interval, 0, 1)
+        grid.addWidget(QLabel("Cible FPS"), 0, 2)
+        grid.addWidget(self.fps_target, 0, 3)
+        grid.addWidget(QLabel("Thème"), 1, 0)
+        grid.addWidget(self.theme, 1, 1)
+        grid.addWidget(self.ontop, 1, 2, 1, 2)
+        grid.setColumnStretch(4, 1)
+        return self.options
+
+    def _toggle_options(self, shown):
+        self.options.setVisible(shown)
+
+    # -- thème -------------------------------------------------------------- #
+    def _set_theme(self, _index):
+        self.theme_mode = self.theme.currentData()
+        self.apply_theme()
+
+    def _on_system_theme_changed(self, _scheme):
+        """Le bureau est passé du clair au sombre (ou l'inverse)."""
+        if self.theme_mode == "systeme":
+            self.apply_theme()
+
+    def apply_theme(self):
+        """Bascule la palette et redessine tout, sans redémarrer l'application :
+        l'historique des courbes et la session de jeu en cours sont conservés."""
+        set_palette(resolve_theme(self.theme_mode))
+        app = QApplication.instance()
+        if app is not None:
+            app.setPalette(build_palette())
+            app.setStyleSheet(build_style())
+        # Le QSS ne couvre pas les couleurs posées en ligne ni le QPainter.
+        for card in (self.cpu, self.gpu, self.ram, self.vram, self.game):
+            card.retheme()
+        self.update()
 
     # -- handlers ----------------------------------------------------------- #
     def _set_interval(self, v):
@@ -1215,7 +1384,7 @@ class MainWindow(QWidget):
         freq = f"{d['cpu_freq']/1000:.2f} GHz" if d["cpu_freq"] else "—"
         ttxt = f"{t:.0f}°C" if t is not None else "—"
         self.cpu.update_value(d["cpu_pct"], f"{d['cpu_pct']:.0f}%",
-                              f"{freq}\n{ttxt}", temp_color(t))
+                              f"{freq}\n{ttxt}", temp_role(t))
 
         # GPU
         gpu_name = d["gpu_name"].replace("NVIDIA ", "")
@@ -1226,7 +1395,7 @@ class MainWindow(QWidget):
         gttxt = f"{gt:.0f}°C" if gt is not None else "—"
         pw = f"{d['gpu_power']:.0f} W" if d["gpu_power"] else "—"
         self.gpu.update_value(d["gpu_pct"], f"{d['gpu_pct']:.0f}%",
-                              f"{pw}\n{gttxt}", temp_color(gt))
+                              f"{pw}\n{gttxt}", temp_role(gt))
 
         # RAM
         self.ram.update_value(d["ram_pct"], f"{d['ram_pct']:.0f}%",
@@ -1269,10 +1438,20 @@ class MainWindow(QWidget):
             widget.setValue(value)
             widget.blockSignals(False)
 
+        # Thème : le mode est appliqué juste après, par apply_theme().
+        mode = s.value("theme", DEFAULT_THEME)
+        if mode not in THEME_MODES:
+            mode = DEFAULT_THEME
+        self.theme_mode = mode
+        self.theme.blockSignals(True)
+        self.theme.setCurrentIndex(THEME_MODES.index(mode))
+        self.theme.blockSignals(False)
+
         # QSettings renvoie les booléens en texte selon le backend.
-        ontop = s.value("ontop", False)
-        if isinstance(ontop, str):
-            ontop = ontop.lower() in ("true", "1", "yes")
+        if _as_bool(s.value("options_open", False)):
+            self.opt_button.setChecked(True)
+
+        ontop = _as_bool(s.value("ontop", False))
         if ontop:
             self.ontop.blockSignals(True)
             self.ontop.setChecked(True)
@@ -1289,6 +1468,8 @@ class MainWindow(QWidget):
         s = QSettings("CachyMonitor", "CachyMonitor")
         s.setValue("interval_ms", self.interval.value())
         s.setValue("fps_target", self.fps_target.value())
+        s.setValue("theme", self.theme_mode)
+        s.setValue("options_open", self.opt_button.isChecked())
         s.setValue("ontop", self.ontop.isChecked())
         s.setValue("geometry", self.saveGeometry())
 
@@ -1298,17 +1479,59 @@ class MainWindow(QWidget):
         super().closeEvent(e)
 
 
-STYLE = f"""
-QWidget {{ background: {C_BG}; color: {C_TEXT}; font-family: 'Inter','Noto Sans',sans-serif; font-size: 13px; }}
+def build_palette():
+    """Palette Qt du thème actif.
+
+    Indispensable : les éléments dessinés par le style du bureau (flèches des
+    compteurs, coche des cases, flèche du menu déroulant) ignorent la feuille de
+    style et suivent la palette. Sans ça, un bureau en thème sombre les dessine
+    en clair — donc invisibles — dès qu'on passe CachyMonitor en thème clair.
+    """
+    pal = QPalette()
+    bg, card = QColor(col("bg")), QColor(col("card"))
+    text, muted = QColor(col("text")), QColor(col("muted"))
+    for role, c in (
+        (QPalette.Window, bg),
+        (QPalette.WindowText, text),
+        (QPalette.Base, card),
+        (QPalette.AlternateBase, bg),
+        (QPalette.Text, text),
+        (QPalette.Button, card),
+        (QPalette.ButtonText, text),
+        (QPalette.ToolTipBase, card),
+        (QPalette.ToolTipText, text),
+        (QPalette.PlaceholderText, muted),
+        (QPalette.Highlight, QColor(col("cpu"))),
+        (QPalette.HighlightedText, card),
+    ):
+        pal.setColor(role, c)
+    pal.setColor(QPalette.Disabled, QPalette.Text, muted)
+    pal.setColor(QPalette.Disabled, QPalette.WindowText, muted)
+    pal.setColor(QPalette.Disabled, QPalette.ButtonText, muted)
+    return pal
+
+
+def build_style():
+    """Feuille de style du thème actif (regénérée à chaque changement)."""
+    return f"""
+QWidget {{ background: {col('bg')}; color: {col('text')}; font-family: 'Inter','Noto Sans',sans-serif; font-size: 13px; }}
+/* Sans fond transparent, chaque libellé peint un rectangle de la couleur du
+   fond général, visible comme une bande sur les cartes. */
+QLabel, QCheckBox {{ background: transparent; }}
 #appTitle {{ font-size: 20px; font-weight: 700; }}
-#card {{ background: {C_CARD}; border-radius: 14px; }}
-#cardTitle {{ color: {C_MUTED}; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
+#card {{ background: {col('card')}; border-radius: 14px; }}
+#cardTitle {{ color: {col('muted')}; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }}
 #cardHw {{ font-size: 11px; font-weight: 600; }}
 #cardValue {{ font-size: 26px; font-weight: 700; }}
-#cardSub {{ color: {C_MUTED}; font-size: 12px; }}
-#status {{ color: {C_MUTED}; font-size: 11px; }}
-QSpinBox {{ background: {C_CARD}; border: 1px solid #2a2e3a; border-radius: 6px; padding: 2px 6px; }}
-QCheckBox {{ color: {C_MUTED}; }}
+#cardSub {{ color: {col('muted')}; font-size: 12px; }}
+#status {{ color: {col('muted')}; font-size: 11px; }}
+#options {{ background: {col('card')}; border-radius: 12px; }}
+#optButton {{ background: {col('card')}; color: {col('muted')}; border: 1px solid {col('border')}; border-radius: 8px; padding: 5px 12px; font-weight: 600; }}
+#optButton:hover {{ color: {col('text')}; }}
+#optButton:checked {{ color: {col('cpu')}; border-color: {col('cpu')}; }}
+QSpinBox, QComboBox {{ background: {col('card')}; color: {col('text')}; border: 1px solid {col('border')}; border-radius: 6px; padding: 2px 6px; }}
+QComboBox QAbstractItemView {{ background: {col('card')}; color: {col('text')}; border: 1px solid {col('border')}; selection-background-color: {col('cpu')}; selection-color: {col('card')}; }}
+QCheckBox {{ color: {col('muted')}; }}
 """
 
 
@@ -1320,7 +1543,8 @@ def main():
         app.setWindowIcon(QIcon(icon_path))
     else:
         app.setWindowIcon(QIcon.fromTheme("utilities-system-monitor"))
-    app.setStyleSheet(STYLE)
+    # La palette de départ est posée par MainWindow (apply_theme), qui connaît
+    # le mode mémorisé.
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
