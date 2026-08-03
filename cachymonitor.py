@@ -146,10 +146,8 @@ def set_palette(theme):
 
 def system_theme():
     """Thème du bureau, via Qt. Replié sur 'sombre' si le bureau ne dit rien."""
-    app = QApplication.instance()
-    if app is None:
-        return "sombre"
-    return "clair" if app.styleHints().colorScheme() == Qt.ColorScheme.Light else "sombre"
+    scheme = QApplication.instance().styleHints().colorScheme()
+    return "clair" if scheme == Qt.ColorScheme.Light else "sombre"
 
 
 def resolve_theme(mode):
@@ -1248,11 +1246,14 @@ class MainWindow(QWidget):
         self.opt_button.setText("⚙  Options")
         self.opt_button.setCheckable(True)
         self.opt_button.setCursor(Qt.PointingHandCursor)
-        self.opt_button.toggled.connect(self._toggle_options)
         header.addWidget(self.opt_button)
         root.addLayout(header)
 
-        root.addWidget(self._build_options())
+        # Le panneau existe avant qu'on branche le signal : _toggle_options
+        # planterait s'il se déclenchait sur un self.options pas encore créé.
+        self._build_options()
+        root.addWidget(self.options)
+        self.opt_button.toggled.connect(self._toggle_options)
 
         # Cartes
         grid = QGridLayout()
@@ -1285,9 +1286,9 @@ class MainWindow(QWidget):
         self.apply_theme()
 
         # Suivi du thème du bureau quand le mode « Système » est choisi.
-        app = QApplication.instance()
-        if app is not None:
-            app.styleHints().colorSchemeChanged.connect(self._on_system_theme_changed)
+        QApplication.instance().styleHints().colorSchemeChanged.connect(
+            self._on_system_theme_changed
+        )
 
         # Sampler
         self.sampler = Sampler()
@@ -1341,7 +1342,6 @@ class MainWindow(QWidget):
         grid.addWidget(self.theme, 1, 1)
         grid.addWidget(self.ontop, 1, 2, 1, 2)
         grid.setColumnStretch(4, 1)
-        return self.options
 
     def _toggle_options(self, shown):
         self.options.setVisible(shown)
@@ -1361,9 +1361,8 @@ class MainWindow(QWidget):
         l'historique des courbes et la session de jeu en cours sont conservés."""
         set_palette(resolve_theme(self.theme_mode))
         app = QApplication.instance()
-        if app is not None:
-            app.setPalette(build_palette())
-            app.setStyleSheet(build_style())
+        app.setPalette(build_palette())
+        app.setStyleSheet(build_style())
         # Le QSS ne couvre pas les couleurs posées en ligne ni le QPainter.
         for card in (self.cpu, self.gpu, self.ram, self.vram, self.game):
             card.retheme()
