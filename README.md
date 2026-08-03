@@ -4,13 +4,13 @@ Moniteur système léger pour CachyOS : **CPU, GPU, RAM, VRAM, températures et 
 
 > ℹ️ Projet communautaire indépendant, créé par un utilisateur de CachyOS. **Non affilié à l'équipe officielle de CachyOS** — le nom traduit simplement l'affection pour la distribution.
 
-![CachyMonitor en pleine session de jeu](docs/screenshot.png)
+![CachyMonitor en thème sombre](docs/screenshot.png)
 
-*En jeu : FPS, 1 % low, frametime et goulot d'étranglement CPU/GPU en temps réel.*
+*Jauges CPU / GPU / RAM / VRAM avec températures et courbes de tendance, et en bas les statistiques de session : FPS, 1 % low, 0.1 % low, frametime et goulot d'étranglement CPU/GPU.*
 
-![CachyMonitor hors jeu](docs/screenshot-repos.png)
+![CachyMonitor en thème clair, panneau Options ouvert](docs/screenshot-clair.png)
 
-*Hors jeu : vue d'ensemble des composants (CPU, GPU, RAM, VRAM) avec températures et courbes de tendance.*
+*Thème clair, panneau Options ouvert : intervalle de rafraîchissement, cible FPS, thème (clair / sombre / système) et affichage au-dessus des autres fenêtres.*
 
 ## Pourquoi CachyMonitor ?
 
@@ -33,7 +33,8 @@ compagnon, distincte du jeu, qui réunit dans une seule interface visuelle :
 - les **jauges de composants en direct** — CPU, GPU, RAM, VRAM, fréquences,
   consommation et températures, avec courbes de tendance ;
 - le tout **sans overlay** qui s'affiche par-dessus le jeu, dans une appli légère
-  (un seul fichier Python, une seule dépendance).
+  (un seul fichier Python, une seule dépendance) ;
+- en **thème clair ou sombre**, au choix ou en suivant automatiquement le bureau.
 
 Les briques existaient déjà (MangoHud, Goverlay…), mais personne ne les avait
 assemblées en un **tableau de bord compagnon pensé pour le jeu**. C'est toute
