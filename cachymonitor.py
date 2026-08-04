@@ -45,7 +45,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QCheckBox, QSpinBox, QSizePolicy, QComboBox, QToolButton,
+    QCheckBox, QSpinBox, QSizePolicy, QComboBox, QToolButton, QListView,
 )
 
 # ----------------------------------------------------------------------------- #
@@ -75,6 +75,94 @@ FPS_LOG_DIRS = [
     os.getcwd(),
 ]
 FPS_STALE_SECONDS = 5  # au-delà, on considère qu'aucun jeu ne tourne
+
+# ----------------------------------------------------------------------------- #
+#  Langue de l'interface
+# ----------------------------------------------------------------------------- #
+#
+# Les textes sont écrits en anglais dans le code ; TRANSLATIONS donne les autres
+# langues, choisies d'après la locale du système. Ajouter une langue = ajouter
+# une entrée au dictionnaire, rien d'autre à toucher.
+
+TRANSLATIONS = {
+    "fr": {
+        # Réglages
+        "System": "Système",
+        "Dark": "Sombre",
+        "Light": "Clair",
+        "Interval": "Intervalle",
+        "FPS target": "Cible FPS",
+        "Theme": "Thème",
+        "Language": "Langue",
+        "« System » follows the desktop language":
+            "« Système » suit la langue du bureau",
+        "Always on top": "Au-dessus des autres fenêtres",
+        "Measurement refresh rate": "Fréquence de rafraîchissement des mesures",
+        "Scales the FPS colours and marks the frametime graph":
+            "Sert d'échelle aux couleurs FPS et de repère sur le graphe de frametime",
+        "« System » follows the desktop light/dark setting":
+            "« Système » suit le thème clair/sombre du bureau",
+        # Panneau de jeu
+        "IN GAME": "EN JEU",
+        "AVERAGE ({win:.0f} s)": "MOYENNE ({win:.0f} s)",
+        "No game detected — launch a game with MangoHud":
+            "Aucun jeu détecté — lance un jeu avec MangoHud",
+        "Session running": "Session en cours",
+        "Last session (ended)": "Dernière session (terminée)",
+        "{state} · {mins:.1f} min played · lows over the last {win:.0f} s "
+        "· session range {low:.0f}–{high:.0f} fps":
+            "{state} · {mins:.1f} min de jeu · lows sur les {win:.0f} dernières s "
+            "· extrêmes session {low:.0f}–{high:.0f} fps",
+        "Game": "Jeu",
+        # Goulot d'étranglement
+        "GPU maxed out — GPU-bound": "GPU à fond — limité par le GPU",
+        "CPU maxed out — CPU-bound": "CPU à fond — limité par le CPU",
+        "Neither CPU nor GPU saturated — limited by FPS cap / vsync":
+            "Ni CPU ni GPU saturés — limité par le cap FPS / vsync",
+        "Balanced load": "Charge équilibrée",
+        # Divers
+        "Starting…": "Démarrage…",
+        "waiting for data…": "en attente de données…",
+        "Updated every {ms} ms": "Mise à jour toutes les {ms} ms",
+        "GPU unavailable": "GPU indisponible",
+        "GiB": "Gio",
+    },
+}
+
+
+# Langues proposées à l'utilisateur. « système » suit la locale du bureau ; les
+# autres sont nommées dans leur propre langue (on ne traduit pas un endonyme).
+LANG_MODES = ("systeme", "en", "fr")
+LANG_LABELS = {"systeme": "System", "en": "English", "fr": "Français"}
+DEFAULT_LANG = "systeme"
+
+_strings = {}
+
+
+def _system_language():
+    """Code de langue sur deux lettres, d'après l'environnement (défaut 'en')."""
+    for var in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
+        value = os.environ.get(var)
+        if value:
+            return value.split(":")[0].split(".")[0].split("_")[0].lower()
+    return "en"
+
+
+def set_language(mode):
+    """Active une langue ('systeme', 'en', 'fr'…). Les textes déjà affichés ne
+    changent pas d'eux-mêmes : c'est retext() qui les repose."""
+    global _strings
+    code = _system_language() if mode == "systeme" else mode
+    _strings = TRANSLATIONS.get(code, {})
+
+
+def tr(text):
+    """Texte d'interface traduit ; renvoie l'anglais si la langue est inconnue."""
+    return _strings.get(text, text)
+
+
+set_language(DEFAULT_LANG)
+
 
 # ----------------------------------------------------------------------------- #
 #  Thèmes
@@ -127,7 +215,7 @@ THEMES = {
 
 # Modes proposés à l'utilisateur. « système » suit le réglage du bureau.
 THEME_MODES = ("systeme", "sombre", "clair")
-THEME_LABELS = {"systeme": "Système", "sombre": "Sombre", "clair": "Clair"}
+THEME_LABELS = {"systeme": "System", "sombre": "Dark", "clair": "Light"}
 DEFAULT_THEME = "systeme"
 
 _palette = THEMES["sombre"]
@@ -379,7 +467,7 @@ def read_ram_name():
     # La capacité « affichée » est < à la capacité physique (kernel, intégré) :
     # on arrondit au multiple de 4 Gio le plus proche pour retomber sur 8/16/32…
     phys = round(gib / 4) * 4 if gib > 6 else round(gib)
-    cap = f"{phys} Gio"
+    cap = f"{phys} {tr('GiB')}"
     extra = _ram_dmi()
     return f"{cap} · {extra}" if extra else cap
 
@@ -502,7 +590,7 @@ def _gpu_amd():
             clock = f / 1e6 if f is not None else None            # Hz -> MHz
 
         return {
-            "gpu_name": _gpu_name_lspci(dev, "GPU AMD"),
+            "gpu_name": _gpu_name_lspci(dev, "AMD GPU"),
             "gpu_pct": busy or 0.0,
             "gpu_temp": temp,
             "vram_used": (vram_used / 1024 / 1024) if vram_used else 0.0,   # octets -> MiB
@@ -536,7 +624,7 @@ def _gpu_intel():
             f = _num(_read_first(os.path.join(dev, "gt_cur_freq_mhz")))
         clock = f
         return {
-            "gpu_name": _gpu_name_lspci(dev, "GPU Intel"),
+            "gpu_name": _gpu_name_lspci(dev, "Intel GPU"),
             "gpu_pct": 0.0,          # indisponible sans root
             "gpu_temp": temp,
             "vram_used": 0.0,        # mémoire partagée avec la RAM
@@ -566,7 +654,7 @@ def read_gpu():
 
 def _gpu_none():
     return {
-        "gpu_name": "GPU indisponible", "gpu_pct": 0.0, "gpu_temp": None,
+        "gpu_name": tr("GPU unavailable"), "gpu_pct": 0.0, "gpu_temp": None,
         "vram_used": 0.0, "vram_total": 0.0, "gpu_clock": None, "gpu_power": None,
     }
 
@@ -620,7 +708,7 @@ class GameReader:
         base = os.path.basename(path)
         base = re.sub(r"\.csv$", "", base, flags=re.I)
         base = re.sub(r"_\d{4}-\d{2}-\d{2}[_-]\d{2}-\d{2}-\d{2}$", "", base)
-        return base.replace("_", " ").strip().title() or "Jeu"
+        return base.replace("_", " ").strip().title() or tr("Game")
 
     def _reset_for(self, path):
         self._path = path
@@ -754,12 +842,12 @@ def bottleneck(cpu_load, gpu_load):
     if cpu_load is None or gpu_load is None:
         return None, None
     if gpu_load >= 95:
-        return "GPU à fond — limité par le GPU", "gpu"
+        return tr("GPU maxed out — GPU-bound"), "gpu"
     if cpu_load >= 85 and gpu_load < 90:
-        return "CPU à fond — limité par le CPU", "cpu"
+        return tr("CPU maxed out — CPU-bound"), "cpu"
     if gpu_load < 80 and cpu_load < 80:
-        return "Ni CPU ni GPU saturés — limité par le cap FPS / vsync", "muted"
-    return "Charge équilibrée", "muted"
+        return tr("Neither CPU nor GPU saturated — limited by FPS cap / vsync"), "muted"
+    return tr("Balanced load"), "muted"
 
 
 # ----------------------------------------------------------------------------- #
@@ -904,7 +992,7 @@ class FrametimeGraph(QWidget):
 
         if len(self.data) < 2:
             p.setPen(muted)
-            p.drawText(self.rect(), Qt.AlignCenter, "en attente de données…")
+            p.drawText(self.rect(), Qt.AlignCenter, tr("waiting for data…"))
             return
 
         # Échelle : au moins 2x la cible, sinon le pic max (avec marge).
@@ -1083,11 +1171,11 @@ class StatBox(QVBoxLayout):
         self.value = QLabel("—")
         self.retheme()
         self.value.setAlignment(Qt.AlignCenter)
-        cap = QLabel(label)
-        cap.setObjectName("cardSub")
-        cap.setAlignment(Qt.AlignCenter)
+        self.cap = QLabel(label)
+        self.cap.setObjectName("cardSub")
+        self.cap.setAlignment(Qt.AlignCenter)
         self.addWidget(self.value)
-        self.addWidget(cap)
+        self.addWidget(self.cap)
 
     def set(self, text, role=None):
         self.value.setText(text)
@@ -1118,10 +1206,10 @@ class GamePanel(QFrame):
         # En-tête : titre + nom du jeu détecté
         top = QHBoxLayout()
         self.dot = QLabel("●")
-        t = QLabel("EN JEU")
-        t.setObjectName("cardTitle")
+        self.title = QLabel(tr("IN GAME"))
+        self.title.setObjectName("cardTitle")
         top.addWidget(self.dot)
-        top.addWidget(t)
+        top.addWidget(self.title)
         top.addStretch()
         self.game = QLabel("")
         self.game.setObjectName("cardHw")
@@ -1132,9 +1220,9 @@ class GamePanel(QFrame):
         stats = QHBoxLayout()
         stats.setSpacing(6)
         self.s_fps = StatBox("FPS", "fps", big=True)
-        self.s_low1 = StatBox("1% LOW (60 s)", "text")
-        self.s_low01 = StatBox("0.1% LOW (60 s)", "text")
-        self.s_avg = StatBox("MOYENNE (60 s)", "muted")
+        self.s_low1 = StatBox(tr("1% LOW ({win:.0f} s)").format(win=GAME_WINDOW_S), "text")
+        self.s_low01 = StatBox(tr("0.1% LOW ({win:.0f} s)").format(win=GAME_WINDOW_S), "text")
+        self.s_avg = StatBox(tr("AVERAGE ({win:.0f} s)").format(win=GAME_WINDOW_S), "muted")
         self.s_ft = StatBox("FRAMETIME", "ft")
         for s in (self.s_fps, self.s_low1, self.s_low01, self.s_avg, self.s_ft):
             stats.addLayout(s)
@@ -1151,12 +1239,26 @@ class GamePanel(QFrame):
         self.ft_graph = FrametimeGraph()
         lay.addWidget(self.ft_graph, 1)
 
-        self.status = QLabel("Aucun jeu détecté — lance un jeu avec MangoHud")
+        self.status = QLabel(tr("No game detected — launch a game with MangoHud"))
         self.status.setObjectName("cardSub")
         self.status.setAlignment(Qt.AlignCenter)
+        self.idle = True     # aucun jeu détecté : le statut est un texte fixe
         lay.addWidget(self.status)
 
         self.retheme()
+
+    def retext(self):
+        """Repose les libellés fixes après un changement de langue. Le reste
+        (statut, goulot, valeurs) est réécrit au prochain échantillon."""
+        self.title.setText(tr("IN GAME"))
+        for box, key in (
+            (self.s_low1, "1% LOW ({win:.0f} s)"),
+            (self.s_low01, "0.1% LOW ({win:.0f} s)"),
+            (self.s_avg, "AVERAGE ({win:.0f} s)"),
+        ):
+            box.cap.setText(tr(key).format(win=GAME_WINDOW_S))
+        if self.idle:
+            self.status.setText(tr("No game detected — launch a game with MangoHud"))
 
     def retheme(self):
         self.dot.setStyleSheet(f"color:{col('fps')}; font-size:12px;")
@@ -1186,9 +1288,11 @@ class GamePanel(QFrame):
         self.game.setText("")
         self.bottle.setText("")
         self.ft_graph.set_data([])
-        self.status.setText("Aucun jeu détecté — lance un jeu avec MangoHud")
+        self.idle = True
+        self.status.setText(tr("No game detected — launch a game with MangoHud"))
 
     def update_game(self, g, target):
+        self.idle = False
         self.game.setText(g["name"])
 
         if g["live"] and g["fps"] is not None:
@@ -1211,12 +1315,42 @@ class GamePanel(QFrame):
 
         self.ft_graph.set_data(g["ft_history"], target_ms=1000.0 / target)
 
-        etat = "Session en cours" if g["live"] else "Dernière session (terminée)"
+        state = tr("Session running") if g["live"] else tr("Last session (ended)")
         self.status.setText(
-            f"{etat} · {g['duration_s']/60:.1f} min de jeu · "
-            f"lows sur les {g['window_s']:.0f} dernières s · "
-            f"extrêmes session {g['min']:.0f}–{g['max']:.0f} fps"
+            tr("{state} · {mins:.1f} min played · lows over the last {win:.0f} s "
+               "· session range {low:.0f}–{high:.0f} fps").format(
+                state=state, mins=g["duration_s"] / 60, win=g["window_s"],
+                low=g["min"], high=g["max"],
+            )
         )
+
+
+# ----------------------------------------------------------------------------- #
+#  Menu déroulant
+# ----------------------------------------------------------------------------- #
+
+class DropDownComboBox(QComboBox):
+    """Liste déroulante qui s'ouvre TOUJOURS sous le champ, sur un fond opaque.
+
+    Laissés au style du bureau, Breeze et Adwaita affichent la liste comme un
+    menu centré sur l'entrée courante : choisie la dernière entrée, la liste
+    s'ouvre vers le haut — déroutant — et son fond translucide laisse voir le
+    bureau à travers. La règle QSS « combobox-popup: 0 » impose la liste
+    déroulante classique ; les deux réglages ci-dessous rendent son conteneur
+    opaque. Ils sont reposés à chaque ouverture car le style du bureau les
+    réapplique après coup (et seule une fenêtre encore invisible peut changer
+    de transparence).
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setView(QListView())
+
+    def showPopup(self):
+        popup = self.view().window()
+        popup.setAttribute(Qt.WA_TranslucentBackground, False)
+        popup.setAutoFillBackground(True)
+        super().showPopup()
 
 
 # ----------------------------------------------------------------------------- #
@@ -1229,6 +1363,7 @@ class MainWindow(QWidget):
         self.setWindowTitle("CachyMonitor")
         self.resize(560, 720)
         self.theme_mode = DEFAULT_THEME
+        self.lang_mode = DEFAULT_LANG
 
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 16, 16, 16)
@@ -1277,12 +1412,16 @@ class MainWindow(QWidget):
         self.cpu.hw.setText(read_cpu_name())
         self.ram.hw.setText(read_ram_name())
 
-        self.status = QLabel("Démarrage…")
+        self.status = QLabel(tr("Starting…"))
+        self.started = False   # passe à True au 1er échantillon (statut réel)
         self.status.setObjectName("status")
         root.addWidget(self.status)
 
-        # Réglages mémorisés (intervalle, cible FPS, thème, "au-dessus", géométrie)
+        # Réglages mémorisés (intervalle, cible FPS, thème, langue, "au-dessus",
+        # géométrie). Les textes sont posés avec la langue par défaut pendant la
+        # construction : retext() les repose dans celle qui a été mémorisée.
         self._load_settings()
+        self.retext()
         self.apply_theme()
 
         # Suivi du thème du bureau quand le mode « Système » est choisi.
@@ -1314,7 +1453,7 @@ class MainWindow(QWidget):
         self.interval.setSingleStep(100)
         self.interval.setValue(DEFAULT_INTERVAL_MS)
         self.interval.setSuffix(" ms")
-        self.interval.setToolTip("Fréquence de rafraîchissement des mesures")
+        self.interval.setToolTip(tr("Measurement refresh rate"))
         self.interval.valueChanged.connect(self._set_interval)
 
         self.fps_target = QSpinBox()
@@ -1322,29 +1461,78 @@ class MainWindow(QWidget):
         self.fps_target.setSingleStep(5)
         self.fps_target.setValue(DEFAULT_FPS_TARGET)
         self.fps_target.setToolTip(
-            "Sert d'échelle aux couleurs FPS et de repère sur le graphe de frametime"
+            tr("Scales the FPS colours and marks the frametime graph")
         )
 
-        self.theme = QComboBox()
+        self.theme = DropDownComboBox()
         for mode in THEME_MODES:
-            self.theme.addItem(THEME_LABELS[mode], mode)
-        self.theme.setToolTip("« Système » suit le thème clair/sombre du bureau")
+            self.theme.addItem(tr(THEME_LABELS[mode]), mode)
+        self.theme.setToolTip(tr("« System » follows the desktop light/dark setting"))
         self.theme.currentIndexChanged.connect(self._set_theme)
 
-        self.ontop = QCheckBox("Au-dessus des autres fenêtres")
+        self.lang = DropDownComboBox()
+        for mode in LANG_MODES:
+            self.lang.addItem(tr(LANG_LABELS[mode]), mode)
+        self.lang.setToolTip(tr("« System » follows the desktop language"))
+        self.lang.currentIndexChanged.connect(self._set_language)
+
+        self.ontop = QCheckBox(tr("Always on top"))
         self.ontop.toggled.connect(self._toggle_ontop)
 
-        grid.addWidget(QLabel("Intervalle"), 0, 0)
+        self.l_interval = QLabel(tr("Interval"))
+        self.l_fps = QLabel(tr("FPS target"))
+        self.l_theme = QLabel(tr("Theme"))
+        self.l_lang = QLabel(tr("Language"))
+
+        grid.addWidget(self.l_interval, 0, 0)
         grid.addWidget(self.interval, 0, 1)
-        grid.addWidget(QLabel("Cible FPS"), 0, 2)
+        grid.addWidget(self.l_fps, 0, 2)
         grid.addWidget(self.fps_target, 0, 3)
-        grid.addWidget(QLabel("Thème"), 1, 0)
+        grid.addWidget(self.l_theme, 1, 0)
         grid.addWidget(self.theme, 1, 1)
-        grid.addWidget(self.ontop, 1, 2, 1, 2)
+        grid.addWidget(self.l_lang, 1, 2)
+        grid.addWidget(self.lang, 1, 3)
+        grid.addWidget(self.ontop, 2, 0, 1, 4)
         grid.setColumnStretch(4, 1)
 
     def _toggle_options(self, shown):
         self.options.setVisible(shown)
+
+    # -- langue ------------------------------------------------------------- #
+    def _set_language(self, _index):
+        self.lang_mode = self.lang.currentData()
+        set_language(self.lang_mode)
+        self.retext()
+
+    def retext(self):
+        """Repose tous les textes fixes de l'interface dans la langue active.
+
+        Les textes qui dépendent des mesures (statut, goulot, unités des jauges)
+        ne sont pas touchés ici : ils sont réécrits au prochain échantillon, donc
+        au plus tard après un intervalle de rafraîchissement.
+        """
+        self.interval.setToolTip(tr("Measurement refresh rate"))
+        self.fps_target.setToolTip(
+            tr("Scales the FPS colours and marks the frametime graph")
+        )
+        self.l_interval.setText(tr("Interval"))
+        self.l_fps.setText(tr("FPS target"))
+        self.l_theme.setText(tr("Theme"))
+        self.l_lang.setText(tr("Language"))
+        self.ontop.setText(tr("Always on top"))
+        self.theme.setToolTip(tr("« System » follows the desktop light/dark setting"))
+        self.lang.setToolTip(tr("« System » follows the desktop language"))
+
+        # Les entrées des listes : on réécrit le libellé sans toucher au choix.
+        for combo, labels in ((self.theme, THEME_LABELS), (self.lang, LANG_LABELS)):
+            for i in range(combo.count()):
+                combo.setItemText(i, tr(labels[combo.itemData(i)]))
+
+        self.game.retext()
+        # Capacité RAM : lue une seule fois au démarrage, son unité est traduite.
+        self.ram.hw.setText(read_ram_name())
+        if not self.started:
+            self.status.setText(tr("Starting…"))
 
     # -- thème -------------------------------------------------------------- #
     def _set_theme(self, _index):
@@ -1398,13 +1586,13 @@ class MainWindow(QWidget):
 
         # RAM
         self.ram.update_value(d["ram_pct"], f"{d['ram_pct']:.0f}%",
-                              f"{d['ram_used']:.1f} / {d['ram_total']:.1f} Gio")
+                              f"{d['ram_used']:.1f} / {d['ram_total']:.1f} {tr('GiB')}")
 
         # VRAM
         vt, vu = d["vram_total"], d["vram_used"]
         vpct = (vu / vt * 100) if vt else 0
         self.vram.update_value(vpct, f"{vpct:.0f}%",
-                               f"{vu/1024:.1f} / {vt/1024:.1f} Gio")
+                               f"{vu/1024:.1f} / {vt/1024:.1f} {tr('GiB')}")
 
         # Session de jeu (MangoHud)
         g = d.get("game")
@@ -1413,9 +1601,10 @@ class MainWindow(QWidget):
         else:
             self.game.update_game(g, self.fps_target.value())
 
+        self.started = True
         self.status.setText(
-            f"Mise à jour toutes les {self.sampler.interval_ms} ms · "
-            f"{time.strftime('%H:%M:%S')}"
+            tr("Updated every {ms} ms").format(ms=self.sampler.interval_ms)
+            + f" · {time.strftime('%H:%M:%S')}"
         )
 
     # -- persistance des réglages ------------------------------------------- #
@@ -1446,6 +1635,16 @@ class MainWindow(QWidget):
         self.theme.setCurrentIndex(THEME_MODES.index(mode))
         self.theme.blockSignals(False)
 
+        # Langue : les textes sont reposés juste après, par retext().
+        lang = s.value("language", DEFAULT_LANG)
+        if lang not in LANG_MODES:
+            lang = DEFAULT_LANG
+        self.lang_mode = lang
+        set_language(lang)
+        self.lang.blockSignals(True)
+        self.lang.setCurrentIndex(LANG_MODES.index(lang))
+        self.lang.blockSignals(False)
+
         # QSettings renvoie les booléens en texte selon le backend.
         if _as_bool(s.value("options_open", False)):
             self.opt_button.setChecked(True)
@@ -1468,6 +1667,7 @@ class MainWindow(QWidget):
         s.setValue("interval_ms", self.interval.value())
         s.setValue("fps_target", self.fps_target.value())
         s.setValue("theme", self.theme_mode)
+        s.setValue("language", self.lang_mode)
         s.setValue("options_open", self.opt_button.isChecked())
         s.setValue("ontop", self.ontop.isChecked())
         s.setValue("geometry", self.saveGeometry())
@@ -1529,7 +1729,14 @@ QLabel, QCheckBox {{ background: transparent; }}
 #optButton:hover {{ color: {col('text')}; }}
 #optButton:checked {{ color: {col('cpu')}; border-color: {col('cpu')}; }}
 QSpinBox, QComboBox {{ background: {col('card')}; color: {col('text')}; border: 1px solid {col('border')}; border-radius: 6px; padding: 2px 6px; }}
-QComboBox QAbstractItemView {{ background: {col('card')}; color: {col('text')}; border: 1px solid {col('border')}; selection-background-color: {col('cpu')}; selection-color: {col('card')}; }}
+/* combobox-popup: 0 => vraie liste déroulante sous le champ, au lieu du menu
+   centré sur l'entrée courante que dessinent Breeze et Adwaita. */
+QComboBox {{ combobox-popup: 0; }}
+QComboBox QAbstractItemView {{ background-color: {col('card')}; color: {col('text')}; border: 1px solid {col('border')}; outline: 0; selection-background-color: {col('cpu')}; selection-color: {col('card')}; }}
+/* Le conteneur du menu déroulant est translucide chez certains styles : on lui
+   redonne un fond plein, sinon le bureau se voit à travers la liste. */
+QComboBox QAbstractItemView::item {{ padding: 3px 6px; }}
+QComboBox QListView {{ background-color: {col('card')}; }}
 QCheckBox {{ color: {col('muted')}; }}
 """
 

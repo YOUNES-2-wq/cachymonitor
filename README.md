@@ -10,7 +10,14 @@ Moniteur système léger pour CachyOS : **CPU, GPU, RAM, VRAM, températures et 
 
 ![CachyMonitor en thème clair, panneau Options ouvert](docs/screenshot-clair.png)
 
-*Thème clair, panneau Options ouvert : intervalle de rafraîchissement, cible FPS, thème (clair / sombre / système) et affichage au-dessus des autres fenêtres.*
+*Thème clair, panneau Options ouvert : intervalle de rafraîchissement, cible FPS, thème (clair / sombre / système), langue et affichage au-dessus des autres fenêtres.*
+
+> 🌍 **Langue** — l'interface suit par défaut la langue du système (`LANG`/`LC_ALL`) :
+> **français** si le bureau l'est, **anglais** partout ailleurs. Elle se change aussi
+> à la main, à chaud, dans le panneau **⚙ Options → Langue** (Système / English /
+> Français) ; le choix est mémorisé. Ajouter une langue = ajouter une entrée au
+> dictionnaire `TRANSLATIONS` en haut de `cachymonitor.py`, les contributions sont
+> bienvenues.
 
 ## Pourquoi CachyMonitor ?
 
@@ -53,8 +60,8 @@ analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne 
 >   commande via l'**AUR** (ci-dessous).
 > - **Toutes les autres distros** → installation manuelle depuis Git (section plus bas).
 
-<!-- AVIS TEMPORAIRE — à retirer dès que le push AUR de la 1.1.0 est passé -->
-> ### ⚠️ L'AUR est momentanément figé — la 1.1.0 n'y est pas encore
+<!-- AVIS TEMPORAIRE — à retirer dès que le push AUR de la 1.2.0 est passé -->
+> ### ⚠️ L'AUR est momentanément figé — la 1.2.0 n'y est pas encore
 >
 > L'AUR n'accepte plus les envois depuis fin juillet 2026, suite à la
 > [vague d'adoptions malveillantes de paquets](https://lwn.net/Articles/1086489/) qui
@@ -62,8 +69,8 @@ analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne 
 > n'a pas rouvert.
 >
 > **Concrètement :** `paru -S cachymonitor` installe encore la **1.0.0**, sans le thème
-> clair ni le panneau Options. Pour avoir la **1.1.0** dès maintenant, passe par
-> l'**[installation manuelle](#manuellement-sur-nimporte-quelle-distribution)**
+> clair, le panneau Options ni l'interface multilingue. Pour avoir la **1.2.0** dès
+> maintenant, passe par l'**[installation manuelle](#manuellement-sur-nimporte-quelle-distribution)**
 > ci-dessous — c'est un seul fichier Python à télécharger, rien à compiler.
 >
 > Le paquet AUR sera mis à jour dès la réouverture, et cet avis retiré.
@@ -101,7 +108,9 @@ sudo pacman -S pyside6
 sudo dnf install python3-pyside6
 
 # Ubuntu / Debian / Pop!_OS / Mint
-sudo apt install python3-pyside6
+# Debian découpe PySide6 en un paquet par module Qt : il n'existe pas de paquet
+# « python3-pyside6 » global. CachyMonitor n'a besoin que de ces trois-là.
+sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets
 
 # openSUSE
 sudo zypper install python3-PySide6

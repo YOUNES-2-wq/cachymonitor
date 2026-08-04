@@ -1,7 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=CachyMonitor
-Comment=Moniteur système CPU/GPU/RAM/températures/FPS
+Comment=Gaming system monitor: CPU/GPU/RAM/temperatures/FPS
+Comment[fr]=Moniteur système gaming : CPU/GPU/RAM/températures/FPS
 Exec=python3 /home/younescachy/cachymonitor/cachymonitor.py
 Icon=/home/younescachy/cachymonitor/cachymonitor.svg
 Terminal=false
