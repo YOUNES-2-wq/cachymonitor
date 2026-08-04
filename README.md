@@ -59,6 +59,12 @@ analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne 
 > - **Distros basées sur Arch** (CachyOS, Manjaro, EndeavourOS…) → installation en une
 >   commande via l'**AUR** (ci-dessous).
 > - **Toutes les autres distros** → installation manuelle depuis Git (section plus bas).
+>
+> **X11 comme Wayland** — aucune donnée ne transite par le serveur d'affichage, et
+> Qt6 gère les deux. Testé sur les deux backends. Seule différence à connaître :
+> l'option « au-dessus des autres fenêtres » est toujours respectée sous X11, alors
+> que beaucoup de compositeurs Wayland ignorent cette demande venant d'une
+> application — ce n'est pas un bug de CachyMonitor.
 
 <!-- AVIS TEMPORAIRE — à retirer dès que le push AUR de la 1.2.0 est passé -->
 > ### ⚠️ L'AUR est momentanément figé — la 1.2.0 n'y est pas encore
