@@ -66,21 +66,6 @@ analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne 
 > que beaucoup de compositeurs Wayland ignorent cette demande venant d'une
 > application — ce n'est pas un bug de CachyMonitor.
 
-<!-- AVIS TEMPORAIRE — à retirer dès que le push AUR de la 1.2.0 est passé -->
-> ### ⚠️ L'AUR est momentanément figé — la 1.2.0 n'y est pas encore
->
-> L'AUR n'accepte plus les envois depuis fin juillet 2026, suite à la
-> [vague d'adoptions malveillantes de paquets](https://lwn.net/Articles/1086489/) qui
-> touche le dépôt. Je ne peux donc pas y publier la mise à jour tant que le service
-> n'a pas rouvert.
->
-> **Concrètement :** `paru -S cachymonitor` installe encore la **1.0.0**, sans le thème
-> clair, le panneau Options ni l'interface multilingue. Pour avoir la **1.2.0** dès
-> maintenant, passe par l'**[installation manuelle](#manuellement-sur-nimporte-quelle-distribution)**
-> ci-dessous — c'est un seul fichier Python à télécharger, rien à compiler.
->
-> Le paquet AUR sera mis à jour dès la réouverture, et cet avis retiré.
-
 ### Depuis l'AUR (recommandé, distros Arch)
 
 [![AUR version](https://img.shields.io/aur/version/cachymonitor?label=AUR&color=1793d1&cacheSeconds=600)](https://aur.archlinux.org/packages/cachymonitor)
