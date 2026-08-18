@@ -97,6 +97,23 @@ FPS_STALE_SECONDS = 5  # au-delà, on considère qu'aucun jeu ne tourne
 # Windows : la mémoire partagée d'Afterburner et celle de RivaTuner (RTSS).
 AB_SHARED_MEMORY = ("MAHMSharedMemory", "Global\\MAHMSharedMemory")
 RTSS_SHARED_MEMORY = ("RTSSSharedMemoryV2", "Global\\RTSSSharedMemoryV2")
+SHM_MAX_SIZE = 64 * 1024 * 1024   # garde-fou : RTSS 7.x occupe ~5,3 Mo
+MAX_PATH = 260                    # longueur d'un chemin dans les structures Windows
+
+# Bornes de plausibilité, pour écarter une lecture aberrante plutôt que de
+# l'afficher. Un capteur absent vaut souvent 0 ou FLT_MAX, pas None.
+FPS_MIN, FPS_MAX = 1.0, 1000.0
+TEMP_MIN, TEMP_MAX = 0.0, 150.0
+
+
+def plausible_fps(fps):
+    """Le FPS s'il est crédible, sinon None."""
+    return fps if fps is not None and FPS_MIN < fps < FPS_MAX else None
+
+
+def plausible_temp(t):
+    """La température en °C si elle est crédible, sinon None."""
+    return t if t is not None and TEMP_MIN < t < TEMP_MAX else None
 
 # ----------------------------------------------------------------------------- #
 #  Langue de l'interface
@@ -328,6 +345,29 @@ def temp_role(t):
     return "ok"
 
 
+def _num(x):
+    """Conversion en float d'une valeur venue de l'extérieur, ou None."""
+    try:
+        return float(x)
+    except (TypeError, ValueError):
+        return None
+
+
+def _powershell(command, timeout=3):
+    """Sortie d'une commande PowerShell, ou chaîne vide si elle échoue.
+
+    Seul moyen d'interroger WMI/CIM sans dépendance supplémentaire. Coûteux
+    (démarrage d'un interpréteur) : réservé aux valeurs lues rarement.
+    """
+    try:
+        return subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
+            capture_output=True, text=True, timeout=timeout, **_NO_WINDOW,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
 def _as_bool(v):
     """QSettings rend les booléens en texte selon le backend."""
     if isinstance(v, str):
@@ -346,32 +386,48 @@ def _as_bool(v):
 # affiche exactement le même chiffre que celui vu en jeu.
 
 
+SHM_HEADER_SIZE = 64        # en-tête commun aux structures d'Afterburner et de RTSS
+
+_k32_cache = None
+
+
 def _kernel32():
     """kernel32 avec les signatures nécessaires au 64-bit.
 
     Sans restype/argtypes explicites, ctypes tronque les pointeurs renvoyés par
     MapViewOfFile à 32 bits et le processus meurt en ACCESS_VIOLATION.
+
+    Les signatures ne changent jamais : on les pose une seule fois, alors que la
+    mémoire partagée est relue jusqu'à dix fois par seconde.
     """
-    import ctypes
-    k32 = ctypes.windll.kernel32
-    k32.OpenFileMappingW.restype = ctypes.c_void_p
-    k32.OpenFileMappingW.argtypes = [ctypes.c_uint32, ctypes.c_bool, ctypes.c_wchar_p]
-    k32.MapViewOfFile.restype = ctypes.c_void_p
-    k32.MapViewOfFile.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32,
-                                  ctypes.c_uint32, ctypes.c_size_t]
-    k32.UnmapViewOfFile.restype = ctypes.c_bool
-    k32.UnmapViewOfFile.argtypes = [ctypes.c_void_p]
-    k32.CloseHandle.restype = ctypes.c_bool
-    k32.CloseHandle.argtypes = [ctypes.c_void_p]
-    return k32
+    global _k32_cache
+    if _k32_cache is None:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        k32.OpenFileMappingW.restype = ctypes.c_void_p
+        k32.OpenFileMappingW.argtypes = [ctypes.c_uint32, ctypes.c_bool,
+                                         ctypes.c_wchar_p]
+        k32.MapViewOfFile.restype = ctypes.c_void_p
+        k32.MapViewOfFile.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
+                                      ctypes.c_uint32, ctypes.c_uint32,
+                                      ctypes.c_size_t]
+        k32.UnmapViewOfFile.restype = ctypes.c_bool
+        k32.UnmapViewOfFile.argtypes = [ctypes.c_void_p]
+        k32.CloseHandle.restype = ctypes.c_bool
+        k32.CloseHandle.argtypes = [ctypes.c_void_p]
+        _k32_cache = k32
+    return _k32_cache
 
 
 def _read_shared_memory(names, size_from_header):
-    """Lit une mémoire partagée Windows nommée.
+    """Lit une mémoire partagée Windows nommée, et renvoie ses octets.
 
-    `size_from_header` reçoit les 64 premiers octets et renvoie la taille totale
-    à mapper (ou None pour abandonner) : la taille réelle se trouve dans l'en-tête
-    de ces structures, on ne peut pas la connaître avant de l'avoir lue.
+    La taille utile n'est connue qu'après lecture de l'en-tête : `size_from_header`
+    reçoit les SHM_HEADER_SIZE premiers octets et renvoie le nombre d'octets à
+    copier, ou None pour abandonner (signature inconnue, en-tête aberrant).
+
+    Les octets renvoyés commencent à l'en-tête : l'appelant peut le relire depuis
+    le début du résultat, sans qu'on ait à le lui repasser séparément.
     """
     if not IS_WINDOWS:
         return None
@@ -382,29 +438,23 @@ def _read_shared_memory(names, size_from_header):
 
         handle = None
         for name in names:
-            h = k32.OpenFileMappingW(FILE_MAP_READ, False, name)
-            if h:
-                handle = h
+            handle = k32.OpenFileMappingW(FILE_MAP_READ, False, name)
+            if handle:
                 break
         if not handle:
             return None
         try:
-            ptr = k32.MapViewOfFile(handle, FILE_MAP_READ, 0, 0, 64)
+            # Une taille nulle demande la section entière : un seul mapping suffit
+            # donc pour lire l'en-tête puis les données qu'il décrit.
+            ptr = k32.MapViewOfFile(handle, FILE_MAP_READ, 0, 0, 0)
             if not ptr:
                 return None
-            header = bytes(ctypes.string_at(ptr, 64))
-            k32.UnmapViewOfFile(ptr)
-
-            total = size_from_header(header)
-            if not total:
-                return None
-
-            ptr = k32.MapViewOfFile(handle, FILE_MAP_READ, 0, 0, total)
-            if not ptr:
-                return None
-            data = bytes(ctypes.string_at(ptr, total))
-            k32.UnmapViewOfFile(ptr)
-            return data
+            try:
+                header = bytes(ctypes.string_at(ptr, SHM_HEADER_SIZE))
+                total = size_from_header(header)
+                return bytes(ctypes.string_at(ptr, total)) if total else None
+            finally:
+                k32.UnmapViewOfFile(ptr)
         finally:
             k32.CloseHandle(handle)
     except Exception:
@@ -460,15 +510,13 @@ class AfterburnerReader:
                     or not 0 < count <= 1024
                     or not self.DATA_OFF + 4 <= entry_sz <= 65536):
                 return None
-            self._layout = (hdr_sz, count, entry_sz)
             return hdr_sz + count * entry_sz
 
-        self._layout = None
         data = _read_shared_memory(AB_SHARED_MEMORY, total_size)
-        if not data or not self._layout:
+        if not data:
             return {}
 
-        hdr_sz, count, entry_sz = self._layout
+        _sig, _ver, hdr_sz, count, entry_sz = struct.unpack_from("<IIIII", data, 0)
         sensors = {}
         for i in range(count):
             base = hdr_sz + i * entry_sz
@@ -554,23 +602,10 @@ def find_cpu_temp_file():
     return None
 
 
-class CpuReader:
-    """Usage CPU (total + par cœur), fréquence et température."""
+class LinuxCpuReader:
+    """Usage CPU (total + par cœur), fréquence et température, via /proc et /sys."""
 
     def __init__(self):
-        if IS_WINDOWS:
-            # psutil.cpu_percent() compare deux appels : le premier amorce le
-            # compteur, sinon le tout premier échantillon vaudrait 0 %.
-            try:
-                import psutil
-                psutil.cpu_percent(interval=None)
-                psutil.cpu_percent(percpu=True, interval=None)
-            except ImportError:
-                pass
-            self._temp_cache = None
-            self._temp_cache_time = 0.0
-            self._temp_file = None
-            return
         self._prev = self._read_stat()
         # Détection indépendante du constructeur (AMD, Intel, générique).
         self._temp_file = find_cpu_temp_file()
@@ -622,91 +657,129 @@ class CpuReader:
         except (OSError, ValueError):
             return None
 
-    def _temp_win(self):
-        """Température CPU sous Windows — cinq sources, dans cet ordre :
+    def sample(self):
+        usage = self._usage()
+        cores = sorted(
+            (k for k in usage if k != "cpu"),
+            key=lambda k: int(k[3:]),
+        )
+        return {
+            "cpu_pct": usage.get("cpu", 0.0),
+            "cpu_cores": [usage[k] for k in cores],
+            "cpu_freq": self._freq_mhz(),
+            "cpu_temp": self._temp(),
+            "cpu_power": None,
+        }
 
-          1. MSI Afterburner (mémoire partagée)  — instantané, déjà lancé
-          2. LibreHardwareMonitor HTTP           — View > Options > Remote Web Server
-          3. LibreHardwareMonitor WMI            — View > Options > WMI Server
-          4. OpenHardwareMonitor WMI
-          5. MSAcpi_ThermalZoneTemperature       — souvent réservé à l'administrateur
 
-        Seule la première est assez rapide pour chaque tick ; les autres passent
-        par HTTP ou PowerShell et sont donc mises en cache 5 secondes.
-        """
-        temp = AB.get("CPU temperature")
-        if temp is not None and 0 < temp < 150:
+def _temp_from_libre_hardware_monitor():
+    """Température CPU via le serveur web de LibreHardwareMonitor (port 8085).
+
+    À activer dans LHWM : View > Options > Remote Web Server.
+    """
+    try:
+        import urllib.request
+        import json
+        with urllib.request.urlopen("http://localhost:8085/data.json",
+                                    timeout=1) as resp:
+            tree = json.loads(resp.read())
+    except Exception:
+        return None
+
+    def find_temp(node):
+        label = node.get("Text", "").lower()
+        value = node.get("Value", "")
+        if "°c" in value.lower() and any(
+            k in label for k in ("cpu package", "core (max)", "tdie",
+                                 "tctl", "cpu core", "core max")
+        ):
+            found = plausible_temp(_num(value.split("°")[0].strip().replace(",", ".")))
+            if found is not None:
+                return found
+        for child in node.get("Children", []):
+            found = find_temp(child)
+            if found is not None:
+                return found
+        return None
+
+    return find_temp(tree)
+
+
+def _temp_from_wmi_sensor(namespace):
+    """Température CPU via le fournisseur WMI de LibreHardwareMonitor / OpenHardwareMonitor.
+
+    À activer dans LHWM : View > Options > WMI Server.
+    """
+    return plausible_temp(_num(_powershell(
+        f"Get-WmiObject -Namespace '{namespace}' -Class Sensor "
+        "-ErrorAction SilentlyContinue | "
+        "Where-Object {$_.SensorType -eq 'Temperature' -and "
+        "$_.Name -match 'CPU Package|Core .Max.'} | "
+        "Sort-Object Value -Descending | "
+        "Select-Object -First 1 -ExpandProperty Value"
+    )))
+
+
+def _temp_from_acpi():
+    """Température via la zone thermique ACPI. Souvent réservée à l'administrateur,
+    et mesurée à côté du CPU plutôt que dessus : c'est le dernier recours."""
+    raw = _num(_powershell(
+        "(Get-WmiObject MSAcpi_ThermalZoneTemperature -Namespace root/wmi "
+        "-ErrorAction SilentlyContinue | Sort-Object CurrentTemperature "
+        "-Descending | Select-Object -First 1).CurrentTemperature"
+    ))
+    # MSAcpi rend des dixièmes de kelvin.
+    return plausible_temp(raw / 10.0 - 273.15) if raw is not None else None
+
+
+class WindowsCpuReader:
+    """Usage CPU (total + par cœur) via psutil, températures via Afterburner.
+
+    Windows n'expose pas de capteur thermique lisible sans pilote : la
+    température, la consommation et la fréquence réelle viennent donc de MSI
+    Afterburner, avec des sources de repli quand il n'est pas lancé.
+    """
+
+    # Sources de repli, dans l'ordre de préférence. Toutes passent par HTTP ou
+    # PowerShell : trop lentes pour chaque tick, d'où le cache.
+    TEMP_FALLBACKS = (
+        _temp_from_libre_hardware_monitor,
+        lambda: _temp_from_wmi_sensor("root/LibreHardwareMonitor"),
+        lambda: _temp_from_wmi_sensor("root/OpenHardwareMonitor"),
+        _temp_from_acpi,
+    )
+    FALLBACK_CACHE_S = 5.0
+
+    def __init__(self):
+        # psutil.cpu_percent() compare deux appels : le premier amorce le
+        # compteur, sinon le tout premier échantillon vaudrait 0 %.
+        try:
+            import psutil
+            psutil.cpu_percent(interval=None)
+            psutil.cpu_percent(percpu=True, interval=None)
+        except ImportError:
+            pass
+        self._temp_cache = None
+        self._temp_cache_time = 0.0
+
+    def _temp(self):
+        temp = plausible_temp(AB.get("CPU temperature"))
+        if temp is not None:
             return temp
 
-        if time.time() - self._temp_cache_time < 5.0:
+        if time.time() - self._temp_cache_time < self.FALLBACK_CACHE_S:
             return self._temp_cache
 
         temp = None
-        try:
-            import urllib.request
-            import json
-            with urllib.request.urlopen("http://localhost:8085/data.json",
-                                        timeout=1) as resp:
-                tree = json.loads(resp.read())
-
-            def find_temp(node):
-                label = node.get("Text", "").lower()
-                value = node.get("Value", "")
-                if "°c" in value.lower() and any(
-                    k in label for k in ("cpu package", "core (max)", "tdie",
-                                         "tctl", "cpu core", "core max")
-                ):
-                    t = _num(value.split("°")[0].strip().replace(",", "."))
-                    if t is not None and 0 < t < 150:
-                        return t
-                for child in node.get("Children", []):
-                    found = find_temp(child)
-                    if found is not None:
-                        return found
-                return None
-
-            temp = find_temp(tree)
-        except Exception:
-            pass
-
-        def powershell(command):
-            try:
-                return subprocess.run(
-                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
-                    capture_output=True, text=True, timeout=3, **_NO_WINDOW,
-                ).stdout.strip()
-            except (OSError, subprocess.SubprocessError):
-                return ""
-
-        for namespace in ("root/LibreHardwareMonitor", "root/OpenHardwareMonitor"):
+        for source in self.TEMP_FALLBACKS:
+            temp = source()
             if temp is not None:
                 break
-            temp = _num(powershell(
-                f"Get-WmiObject -Namespace '{namespace}' -Class Sensor "
-                "-ErrorAction SilentlyContinue | "
-                "Where-Object {$_.SensorType -eq 'Temperature' -and "
-                "$_.Name -match 'CPU Package|Core .Max.'} | "
-                "Sort-Object Value -Descending | "
-                "Select-Object -First 1 -ExpandProperty Value"
-            ))
-
-        if temp is None:
-            # MSAcpi rend des dixièmes de kelvin.
-            raw = _num(powershell(
-                "(Get-WmiObject MSAcpi_ThermalZoneTemperature -Namespace root/wmi "
-                "-ErrorAction SilentlyContinue | Sort-Object CurrentTemperature "
-                "-Descending | Select-Object -First 1).CurrentTemperature"
-            ))
-            if raw is not None:
-                celsius = raw / 10.0 - 273.15
-                if 0 < celsius < 150:
-                    temp = celsius
-
         self._temp_cache = temp
         self._temp_cache_time = time.time()
         return temp
 
-    def _sample_win(self):
+    def sample(self):
         try:
             import psutil
             cpu_pct = psutil.cpu_percent(interval=None)
@@ -726,25 +799,14 @@ class CpuReader:
             "cpu_pct": cpu_pct,
             "cpu_cores": cpu_cores,
             "cpu_freq": cpu_freq,
-            "cpu_temp": self._temp_win(),
+            "cpu_temp": self._temp(),
             "cpu_power": AB.get("CPU power"),
         }
 
-    def sample(self):
-        if IS_WINDOWS:
-            return self._sample_win()
-        usage = self._usage()
-        cores = sorted(
-            (k for k in usage if k != "cpu"),
-            key=lambda k: int(k[3:]),
-        )
-        return {
-            "cpu_pct": usage.get("cpu", 0.0),
-            "cpu_cores": [usage[k] for k in cores],
-            "cpu_freq": self._freq_mhz(),
-            "cpu_temp": self._temp(),
-            "cpu_power": None,
-        }
+
+def make_cpu_reader():
+    """Lecteur CPU adapté à la plateforme."""
+    return WindowsCpuReader() if IS_WINDOWS else LinuxCpuReader()
 
 
 def read_ram():
@@ -839,16 +901,12 @@ SMBIOS_MEMORY_TYPES = {20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4",
 
 def _ram_cim():
     """Type + vitesse RAM via CIM (Windows), ex: 'DDR4 3200 MT/s'."""
-    try:
-        out = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-             "Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue | "
-             "Select-Object -First 1 | ForEach-Object "
-             "{ \"$($_.SMBIOSMemoryType) $($_.Speed)\" }"],
-            capture_output=True, text=True, timeout=6, **_NO_WINDOW,
-        ).stdout.split()
-    except (OSError, subprocess.SubprocessError):
-        return None
+    out = _powershell(
+        "Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue | "
+        "Select-Object -First 1 | ForEach-Object "
+        "{ \"$($_.SMBIOSMemoryType) $($_.Speed)\" }",
+        timeout=6,
+    ).split()
     if len(out) < 2:
         return None
     mtype = SMBIOS_MEMORY_TYPES.get(int(_num(out[0]) or 0))
@@ -961,22 +1019,24 @@ def _hwmon_of(dev_path):
     return None
 
 
-def _num(x):
-    try:
-        return float(x)
-    except (TypeError, ValueError):
-        return None
+_nvidia_smi_path = None
 
 
 def _nvidia_smi():
-    """Chemin de nvidia-smi. Sous Windows il n'est pas toujours dans le PATH."""
-    if IS_WINDOWS:
-        import shutil
-        if not shutil.which("nvidia-smi"):
+    """Chemin de nvidia-smi. Sous Windows il n'est pas toujours dans le PATH.
+
+    Résolu une seule fois : read_gpu() est appelé à chaque tick, et parcourir le
+    PATH toutes les secondes pour une réponse invariable ne sert à rien.
+    """
+    global _nvidia_smi_path
+    if _nvidia_smi_path is None:
+        _nvidia_smi_path = "nvidia-smi"
+        if IS_WINDOWS:
+            import shutil
             fallback = r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"
-            if os.path.exists(fallback):
-                return fallback
-    return "nvidia-smi"
+            if not shutil.which("nvidia-smi") and os.path.exists(fallback):
+                _nvidia_smi_path = fallback
+    return _nvidia_smi_path
 
 
 def _gpu_nvidia():
@@ -1321,6 +1381,9 @@ class MangoHudGameReader:
             },
         )
 
+    def start(self):
+        """Rien à démarrer : la lecture se fait dans le thread d'échantillonnage."""
+
     def stop(self):
         """Rien à arrêter : la lecture se fait dans le thread d'échantillonnage."""
 
@@ -1351,8 +1414,7 @@ class RtssGameReader:
         Hors jeu, le capteur ne vaut pas toujours FLT_MAX : Afterburner le
         remet aussi à 0 selon le moment. Les deux cas signifient « pas de jeu ».
         """
-        fps = AB.get("Framerate")
-        return fps if fps is not None and 1.0 < fps < 1000.0 else None
+        return plausible_fps(AB.get("Framerate"))
 
     def __init__(self):
         self._samples = deque(maxlen=GAME_HISTORY)
@@ -1365,7 +1427,7 @@ class RtssGameReader:
 
     # -- collecte (thread dédié) ------------------------------------------ #
     def start(self):
-        if IS_WINDOWS and self._poller is None:
+        if self._poller is None:
             self._poller = _GamePoller(self)
             self._poller.start()
 
@@ -1374,10 +1436,15 @@ class RtssGameReader:
             self._poller.stop()
             self._poller = None
 
-    def _entries(self, data, header):
-        """Itère les applications accrochées : (pid, nom_exe, compteur_images)."""
+    def _entries(self, data):
+        """Itère les applications accrochées : (pid, chemin_exe_brut, compteur_images).
+
+        Le chemin reste en octets : RTSS accroche aussi le bureau, les navigateurs
+        et les launchers, et seule l'entrée finalement retenue mérite d'être
+        décodée — ici on passerait dix fois par seconde sur toutes les autres.
+        """
         import struct
-        sig, _ver, entry_sz, arr_off, arr_cnt = struct.unpack_from("<IIIII", header, 0)
+        sig, _ver, entry_sz, arr_off, arr_cnt = struct.unpack_from("<IIIII", data, 0)
 
         # RTSS 7.x a déplacé les champs de l'entrée (structure confirmée par
         # analyse différentielle de la mémoire pendant une partie).
@@ -1393,32 +1460,28 @@ class RtssGameReader:
             pid = struct.unpack_from("<I", data, base + pid_off)[0]
             if pid == 0:
                 continue
-            path = data[base + name_off:base + name_off + 260].split(b"\0")[0]
+            path = data[base + name_off:base + name_off + MAX_PATH].split(b"\0")[0]
             frames = struct.unpack_from("<I", data, base + fc_off)[0]
-            yield pid, path.decode("latin-1", "ignore"), frames
+            yield pid, path, frames
 
     def _read_entries(self):
         import struct
-        captured = {}
 
         def total_size(header):
             sig, _ver, entry_sz, arr_off, arr_cnt = struct.unpack_from("<IIIII", header, 0)
             if sig not in self.SIGNATURES or entry_sz == 0 or arr_cnt == 0:
                 return None
             # Garde-fous contre un en-tête corrompu (RTSS 7.x occupe ~5,3 Mo).
-            if entry_sz > 131072 or arr_cnt > 1024 or arr_off > 64 * 1024 * 1024:
+            if entry_sz > 131072 or arr_cnt > 1024 or arr_off > SHM_MAX_SIZE:
                 return None
             total = arr_off + arr_cnt * entry_sz
-            if total > 64 * 1024 * 1024:
-                return None
-            captured["header"] = header
-            return total
+            return total if total <= SHM_MAX_SIZE else None
 
         data = _read_shared_memory(RTSS_SHARED_MEMORY, total_size)
-        if not data or "header" not in captured:
+        if not data:
             return []
         try:
-            return list(self._entries(data, captured["header"]))
+            return list(self._entries(data))
         except Exception:
             return []
 
@@ -1440,8 +1503,8 @@ class RtssGameReader:
 
     @staticmethod
     def _game_name(path):
-        """'D:\\...\\RDR2.exe' -> 'Rdr2'"""
-        base = os.path.basename(path.replace("\\", "/"))
+        """b'D:\\...\\RDR2.exe' -> 'Rdr2'"""
+        base = os.path.basename(path.decode("latin-1", "ignore").replace("\\", "/"))
         base = re.sub(r"\.exe$", "", base, flags=re.I)
         return base.replace("_", " ").strip().title() or tr("Game")
 
@@ -1455,7 +1518,7 @@ class RtssGameReader:
         if AB.available() and self._afterburner_fps() is None:
             return None
 
-        by_pid = {pid: (pid, name, frames) for pid, name, frames in entries}
+        by_pid = {pid: (pid, path, frames) for pid, path, frames in entries}
 
         if self._pid in by_pid:          # on reste sur le jeu déjà suivi
             return by_pid[self._pid]
@@ -1490,8 +1553,8 @@ class RtssGameReader:
         if not (0.02 < dt < 5.0) or df <= 0:
             return
 
-        fps = df / dt
-        if not 1.0 < fps < 1000.0:
+        fps = plausible_fps(df / dt)
+        if fps is None:
             return
         t = now - self._t0
         # Mêmes exclusions que sous Linux : le tout début de session est du
@@ -1568,12 +1631,11 @@ class Sampler(QThread):
         super().__init__()
         self._running = True
         self.interval_ms = DEFAULT_INTERVAL_MS
-        self._cpu = CpuReader()
+        self._cpu = make_cpu_reader()
         self._game = make_game_reader()
 
     def run(self):
-        if hasattr(self._game, "start"):
-            self._game.start()
+        self._game.start()
         while self._running:
             data = {}
             data.update(self._cpu.sample())
