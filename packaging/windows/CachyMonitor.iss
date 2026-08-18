@@ -6,7 +6,7 @@
 ; Fabrication : voir build.ps1, dans ce même dossier.
 
 #define AppName        "CachyMonitor"
-#define AppVersion     "1.1.0"
+#define AppVersion     "1.3.0"
 #define AppPublisher   "YOUNES-2-wq"
 #define AppURL         "https://github.com/YOUNES-2-wq/cachymonitor"
 #define AppExeName     "CachyMonitor.exe"
