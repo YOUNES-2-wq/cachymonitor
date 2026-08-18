@@ -6,7 +6,12 @@
 ; Fabrication : voir build.ps1, dans ce même dossier.
 
 #define AppName        "CachyMonitor"
-#define AppVersion     "1.3.0"
+; La version vient de build.ps1, qui la lit dans APP_VERSION (cachymonitor.py) : une
+; seule valeur fait foi pour le code, l'exécutable et l'installateur. La valeur de repli
+; ne sert qu'à compiler ce script à la main, hors build.ps1.
+#ifndef AppVersion
+  #define AppVersion   "0.0.0-dev"
+#endif
 #define AppPublisher   "YOUNES-2-wq"
 #define AppURL         "https://github.com/YOUNES-2-wq/cachymonitor"
 #define AppExeName     "CachyMonitor.exe"

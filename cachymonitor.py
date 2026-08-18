@@ -54,7 +54,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QSpinBox, QSizePolicy, QComboBox, QToolButton, QListView,
 )
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.1"
 
 IS_WINDOWS = sys.platform.startswith("win")
 
