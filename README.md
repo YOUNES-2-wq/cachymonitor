@@ -1,6 +1,21 @@
 # CachyMonitor
 
-Moniteur système léger pour CachyOS : **CPU, GPU, RAM, VRAM, températures et FPS**, avec graphes temps réel. Un seul fichier Python, une seule dépendance (PySide6).
+# 🎉 NOUVEAU — CachyMonitor est maintenant sur Windows 11 !
+
+### Le même moniteur gaming, désormais sur Linux **et** sur Windows 11.
+
+**[⬇️ Télécharger l'installateur Windows (CachyMonitor-Setup.exe)](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**
+
+Aucun Python, aucune dépendance à installer : on double-clique, on installe, ça marche.
+Toutes les fonctions de la version Linux sont là — statistiques de session (1 % low,
+0.1 % low, moyenne), graphe de frametime, détection du goulot d'étranglement CPU/GPU,
+thème clair/sombre et interface en français ou en anglais.
+
+👉 [Aller directement à l'installation Windows](#installation-sur-windows-11)
+
+---
+
+Moniteur système léger : **CPU, GPU, RAM, VRAM, températures et FPS**, avec graphes temps réel. Un seul fichier Python qui tourne sur **Linux et Windows 11**, une seule dépendance (PySide6).
 
 > ℹ️ Projet communautaire indépendant, créé par un utilisateur de CachyOS. **Non affilié à l'équipe officielle de CachyOS** — le nom traduit simplement l'affection pour la distribution.
 
@@ -12,7 +27,8 @@ Moniteur système léger pour CachyOS : **CPU, GPU, RAM, VRAM, températures et 
 
 *Thème clair, panneau Options ouvert : intervalle de rafraîchissement, cible FPS, thème (clair / sombre / système), langue et affichage au-dessus des autres fenêtres.*
 
-> 🌍 **Langue** — l'interface suit par défaut la langue du système (`LANG`/`LC_ALL`) :
+> 🌍 **Langue** — l'interface suit par défaut la langue du système (`LANG`/`LC_ALL` sous
+> Linux, la locale Windows sinon) :
 > **français** si le bureau l'est, **anglais** partout ailleurs. Elle se change aussi
 > à la main, à chaud, dans le panneau **⚙ Options → Langue** (Système / English /
 > Français) ; le choix est mémorisé. Ajouter une langue = ajouter une entrée au
@@ -48,7 +64,58 @@ assemblées en un **tableau de bord compagnon pensé pour le jeu**. C'est toute
 l'idée de CachyMonitor : ne pas réinventer la mesure, mais la rendre **lisible et
 analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne serait possible.
 
-## Installation
+## Installation sur Windows 11
+
+**[⬇️ Télécharger CachyMonitor-Setup.exe](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**,
+puis double-cliquer. L'installateur crée les raccourcis (bureau + menu Démarrer) et
+s'enlève proprement depuis *Paramètres → Applications*. **Python n'est pas nécessaire** :
+tout est déjà dans l'exécutable.
+
+> ⚠️ **Windows va afficher un avertissement bleu « Windows a protégé votre ordinateur ».**
+> C'est normal et ce n'est pas un virus : l'installateur n'est pas signé
+> numériquement, car un certificat coûte plusieurs centaines d'euros par an pour un
+> projet gratuit. Clique sur **Informations complémentaires** puis
+> **Exécuter quand même**. Le code source est entièrement lisible ici, et tu peux
+> reconstruire l'installateur toi-même (voir plus bas).
+
+### Ce qu'il faut installer à côté
+
+CachyMonitor ne mesure pas le matériel lui-même sous Windows — le système ne l'expose
+pas comme le fait le noyau Linux. Il lit les capteurs de **MSI Afterburner**, que la
+plupart des joueurs ont déjà :
+
+| Pour obtenir | Il faut |
+|---|---|
+| Température, conso et fréquence réelle du CPU | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (gratuit) |
+| Les FPS et les statistiques de session | **RivaTuner (RTSS)**, livré avec Afterburner |
+| GPU, VRAM, températures GPU | rien — `nvidia-smi` suffit sur NVIDIA |
+
+Sans Afterburner, l'application fonctionne quand même : l'usage CPU, la RAM et le GPU
+s'affichent normalement, mais la température, la conso et les FPS restent à `—`.
+Un repli existe pour la température via
+[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
+
+> Les chiffres affichés viennent **de la même source que l'OSD RivaTuner** : le FPS de
+> CachyMonitor est donc exactement celui que tu vois en jeu, sans écart de calcul.
+
+### Reconstruire l'installateur soi-même
+
+```powershell
+python -m pip install pyinstaller pyside6 psutil
+winget install JRSoftware.InnoSetup
+powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
+```
+
+Le résultat apparaît dans `dist\`.
+
+### Lancer sans installer (depuis les sources)
+
+```powershell
+python -m pip install pyside6 psutil
+python cachymonitor.py
+```
+
+## Installation sur Linux
 
 > **CachyMonitor fonctionne sur n'importe quelle distribution Linux** (Arch,
 > CachyOS, Fedora, Ubuntu, Debian, openSUSE, Pop!\_OS…). Il ne lit que des sources
@@ -128,16 +195,28 @@ python3 cachymonitor/cachymonitor.py
 
 ## Sources des données
 
-| Métrique      | Source                                            |
-|---------------|---------------------------------------------------|
-| CPU usage/cœur| `/proc/stat`                                      |
-| CPU fréquence | `/sys/.../cpufreq/scaling_cur_freq`               |
-| CPU temp      | hwmon `k10temp` (Tctl)                             |
-| RAM           | `/proc/meminfo`                                   |
-| GPU / VRAM    | `nvidia-smi` (usage, temp, clock, power)          |
-| FPS           | dernier log CSV de **MangoHud**                   |
+Un seul fichier, deux jeux de sources : `IS_WINDOWS` aiguille chaque lecteur, tout le
+reste (interface, thèmes, langues, calcul des statistiques) est strictement commun.
 
-## Activer le FPS (MangoHud)
+| Métrique       | Linux                                 | Windows 11                                   |
+|----------------|---------------------------------------|----------------------------------------------|
+| CPU usage/cœur | `/proc/stat`                          | psutil                                       |
+| CPU fréquence  | `scaling_cur_freq`                    | MSI Afterburner *(fréquence réelle, boost)*  |
+| CPU temp       | hwmon `k10temp` / `coretemp`          | Afterburner, puis LibreHardwareMonitor       |
+| CPU conso      | —                                     | Afterburner                                  |
+| RAM            | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`              |
+| GPU / VRAM     | `nvidia-smi`, `amdgpu`, `i915`        | `nvidia-smi`, puis capteurs Afterburner      |
+| FPS / session  | logs CSV de **MangoHud**              | **RivaTuner (RTSS)**, relevé toutes les 100 ms |
+
+> Pourquoi 100 ms sous Windows : les « lows » ont besoin de beaucoup de points. À une
+> mesure par seconde, le 0.1 % low se calculerait sur 60 valeurs par minute et ne
+> voudrait plus rien dire. On échantillonne donc RTSS à la même cadence que le
+> `log_interval` de MangoHud.
+
+## Activer le FPS sous Linux (MangoHud)
+
+> Sous Windows, rien à configurer : il suffit que **RivaTuner (RTSS)** tourne, ce qui
+> est le cas dès qu'on lance MSI Afterburner.
 
 Le FPS provient des logs MangoHud. Le plus simple : logging automatique.
 Ajoute à `~/.config/MangoHud/MangoHud.conf` :
@@ -160,7 +239,9 @@ Dès qu'un jeu tourne et écrit un log, CachyMonitor affiche le FPS automatiquem
 
 ## Compatibilité matérielle
 
-CachyMonitor vise **tout matériel sous Linux**, mais tout n'est pas vérifié.
+CachyMonitor vise **tout matériel**, mais tout n'est pas vérifié.
+
+**Linux**
 
 | | CPU | GPU |
 |---|---|---|
@@ -168,8 +249,22 @@ CachyMonitor vise **tout matériel sous Linux**, mais tout n'est pas vérifié.
 | **Intel** | ⚠️ écrit, non testé (`coretemp`) | ⚠️ partiel, non testé (`i915`/`xe`) |
 | **NVIDIA** | — | ✅ testé (`nvidia-smi`) |
 
-**Seule configuration réellement vérifiée** : AMD Ryzen 5 5600 + NVIDIA RTX 3060,
-sous CachyOS / KDE Plasma / Wayland.
+**Windows 11**
+
+| | CPU | GPU |
+|---|---|---|
+| **AMD** | ✅ testé (via Afterburner) | ⚠️ écrit, non testé (capteurs Afterburner) |
+| **Intel** | ⚠️ écrit, non testé (via Afterburner) | ⚠️ écrit, non testé (capteurs Afterburner) |
+| **NVIDIA** | — | ✅ testé (`nvidia-smi`) |
+
+Sous Windows, l'usage CPU, la RAM et le nom du processeur ne dépendent d'aucun
+matériel particulier et fonctionnent partout. À l'inverse, sur une carte non-NVIDIA
+le repli Afterburner affichera la carte sous le nom générique « GPU » et laissera la
+jauge VRAM à 0 % — Afterburner ne publie pas la VRAM totale.
+
+**Configurations réellement vérifiées** : AMD Ryzen 5 5600 + NVIDIA RTX 3060, sous
+CachyOS / KDE Plasma / Wayland **et** sous Windows 11 Pro 24H2 avec MSI Afterburner
+et RivaTuner (RTSS 7.x).
 
 Le reste est écrit d'après la documentation du noyau, sans matériel sous la main
 pour l'exécuter. L'application ne plantera pas si un capteur manque : la valeur
@@ -187,7 +282,8 @@ J'ai créé CachyMonitor seul, et je n'ai **qu'une seule machine** pour le teste
 façon dont l'application se comporte sur un autre matériel que le mien.**
 
 Un Radeon, un CPU Intel, un GPU intégré… chaque configuration est différente, et
-sans vous, ces cas resteront des angles morts. C'est vraiment là que j'ai besoin
+sans vous, ces cas resteront des angles morts. **C'est encore plus vrai pour la
+version Windows 11, toute nouvelle** : elle n'a tourné que sur une seule machine. C'est vraiment là que j'ai besoin
 de la communauté : **votre commentaire est le seul moyen de savoir comment l'app
 réagit sur votre matériel**, et donc de l'améliorer pour tout le monde.
 

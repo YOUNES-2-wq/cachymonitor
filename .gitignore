@@ -5,3 +5,10 @@ __pycache__/
 # Sauvegardes manuelles faites avant grosse modif
 *.bak-*
 *.bak
+
+# Fabrication de l'installateur Windows : ~90 Mo d'artefacts, régénérables avec
+# packaging\windows\build.ps1. Les binaires publiés vont dans une release GitHub,
+# pas dans l'historique du dépôt.
+build/
+dist/
+*.spec
