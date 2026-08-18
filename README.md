@@ -41,6 +41,10 @@ Moniteur système léger : **CPU, GPU, RAM, VRAM, températures et FPS**, avec g
 
 *Thème clair, panneau Options ouvert : intervalle de rafraîchissement, cible FPS, thème (clair / sombre / système), langue et affichage au-dessus des autres fenêtres.*
 
+![CachyMonitor sur un second écran pendant une partie](docs/double-ecran.jpg)
+
+**L'application parfaite pour mon deuxième écran.**
+
 > 🌍 **Langue** — l'interface suit par défaut la langue du système (`LANG`/`LC_ALL` sous
 > Linux, la locale Windows sinon) :
 > **français** si le bureau l'est, **anglais** partout ailleurs. Elle se change aussi
