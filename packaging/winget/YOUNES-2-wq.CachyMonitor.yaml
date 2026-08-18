@@ -1,0 +1,7 @@
+# Manifeste racine — winget-pkgs
+# Destination : manifests/y/YOUNES-2-wq/CachyMonitor/1.3.1/
+PackageIdentifier: YOUNES-2-wq.CachyMonitor
+PackageVersion: 1.3.1
+DefaultLocale: fr-FR
+ManifestType: version
+ManifestVersion: 1.6.0
