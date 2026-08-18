@@ -1,17 +1,31 @@
 # CachyMonitor
 
-# 🎉 NOUVEAU — CachyMonitor est maintenant sur Windows 11 !
+# NOUVEAU — CachyMonitor est maintenant sur Windows 11
 
 ### Le même moniteur gaming, désormais sur Linux **et** sur Windows 11.
 
-**[⬇️ Télécharger l'installateur Windows (CachyMonitor-Setup.exe)](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**
+**[Télécharger l'installateur Windows (CachyMonitor-Setup.exe)](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**
 
-Aucun Python, aucune dépendance à installer : on double-clique, on installe, ça marche.
-Toutes les fonctions de la version Linux sont là — statistiques de session (1 % low,
-0.1 % low, moyenne), graphe de frametime, détection du goulot d'étranglement CPU/GPU,
-thème clair/sombre et interface en français ou en anglais.
+On double-clique, on installe, ça marche : ni Python ni PySide6 à installer, tout est
+dans l'exécutable. Toutes les fonctions de la version Linux sont là — statistiques de
+session (1 % low, 0.1 % low, moyenne), graphe de frametime, détection du goulot
+d'étranglement CPU/GPU, thème clair/sombre et interface en français ou en anglais.
 
-👉 [Aller directement à l'installation Windows](#installation-sur-windows-11)
+> **Deux logiciels sont nécessaires pour que tout fonctionne sous Windows :**
+> **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** et **RivaTuner (RTSS)**,
+> livré avec lui. Les deux sont gratuits. Sans eux, l'application démarre et affiche
+> l'usage CPU, la RAM et le GPU, mais **la température, la consommation et les FPS
+> restent vides**. Windows n'expose pas ces capteurs comme le fait le noyau Linux :
+> CachyMonitor lit donc ceux d'Afterburner.
+> [Détails](#prérequis--msi-afterburner-et-rivatuner)
+
+> **Version Windows testée sur une seule machine.** AMD Ryzen 5 5600 + NVIDIA RTX 3060
+> sous Windows 11 Pro 24H2, et rien d'autre. Sur une Radeon, un CPU Intel ou un GPU
+> intégré, le code existe mais **n'a jamais été exécuté**. Si vous l'essayez, dites-moi
+> ce que ça donne : [Discussions](https://github.com/YOUNES-2-wq/cachymonitor/discussions).
+> C'est le seul moyen que j'aie de savoir si ça marche ailleurs que chez moi.
+
+[Aller directement à l'installation Windows](#installation-sur-windows-11)
 
 ---
 
@@ -66,37 +80,44 @@ analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne 
 
 ## Installation sur Windows 11
 
-**[⬇️ Télécharger CachyMonitor-Setup.exe](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**,
-puis double-cliquer. L'installateur crée les raccourcis (bureau + menu Démarrer) et
-s'enlève proprement depuis *Paramètres → Applications*. **Python n'est pas nécessaire** :
-tout est déjà dans l'exécutable.
+**[Télécharger CachyMonitor-Setup.exe](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**,
+puis double-cliquer. L'assistant propose d'installer pour tous les utilisateurs ou pour
+vous seul, crée les raccourcis (bureau + menu Démarrer) et s'enlève proprement depuis
+*Paramètres → Applications*. **Python n'est pas nécessaire** : tout est dans l'exécutable.
 
-> ⚠️ **Windows va afficher un avertissement bleu « Windows a protégé votre ordinateur ».**
-> C'est normal et ce n'est pas un virus : l'installateur n'est pas signé
-> numériquement, car un certificat coûte plusieurs centaines d'euros par an pour un
-> projet gratuit. Clique sur **Informations complémentaires** puis
-> **Exécuter quand même**. Le code source est entièrement lisible ici, et tu peux
-> reconstruire l'installateur toi-même (voir plus bas).
+> **Windows peut afficher un avertissement bleu « Windows a protégé votre ordinateur ».**
+> C'est normal et ce n'est pas un virus : l'installateur n'est pas signé numériquement,
+> car un certificat coûte plusieurs centaines d'euros par an pour un projet gratuit.
+> Cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
+> Cet avertissement dépend de la réputation du fichier chez Microsoft : il apparaît
+> surtout sur les téléchargements récents et se raréfie avec le temps. Le code source
+> est entièrement lisible ici, et vous pouvez reconstruire l'installateur vous-même
+> (voir plus bas).
 
-### Ce qu'il faut installer à côté
+### Prérequis : MSI Afterburner et RivaTuner
 
-CachyMonitor ne mesure pas le matériel lui-même sous Windows — le système ne l'expose
-pas comme le fait le noyau Linux. Il lit les capteurs de **MSI Afterburner**, que la
-plupart des joueurs ont déjà :
+**À lire avant de s'étonner que des valeurs soient vides.** Sous Windows, CachyMonitor
+ne mesure pas le matériel lui-même : le système n'expose pas les capteurs comme le fait
+le noyau Linux, où tout se lit dans `/sys`. L'application s'appuie donc sur
+**MSI Afterburner**, que la plupart des joueurs font déjà tourner.
 
 | Pour obtenir | Il faut |
 |---|---|
-| Température, conso et fréquence réelle du CPU | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (gratuit) |
-| Les FPS et les statistiques de session | **RivaTuner (RTSS)**, livré avec Afterburner |
-| GPU, VRAM, températures GPU | rien — `nvidia-smi` suffit sur NVIDIA |
+| Température, consommation et fréquence réelle du CPU | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (gratuit) |
+| FPS et statistiques de session (1 % low, 0.1 % low…) | **RivaTuner (RTSS)**, installé automatiquement avec Afterburner |
+| Usage CPU, RAM, nom du processeur | rien, ça marche partout |
+| GPU, VRAM, température GPU | rien sur NVIDIA (`nvidia-smi`) ; Afterburner sinon |
 
-Sans Afterburner, l'application fonctionne quand même : l'usage CPU, la RAM et le GPU
-s'affichent normalement, mais la température, la conso et les FPS restent à `—`.
-Un repli existe pour la température via
+**Ce qu'il faut faire :** installer Afterburner, le laisser tourner (il démarre RTSS
+tout seul), et c'est fini. Aucun réglage à faire dans CachyMonitor.
+
+**Sans Afterburner**, l'application démarre et reste utilisable : usage CPU, RAM, GPU et
+VRAM s'affichent normalement. En revanche la température, la consommation et les FPS
+restent à `—`. Un repli existe pour la seule température, via
 [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
 
-> Les chiffres affichés viennent **de la même source que l'OSD RivaTuner** : le FPS de
-> CachyMonitor est donc exactement celui que tu vois en jeu, sans écart de calcul.
+> Les chiffres viennent **de la même source que l'OSD de RivaTuner** : le FPS affiché par
+> CachyMonitor est exactement celui que vous voyez en jeu, sans écart de calcul.
 
 ### Reconstruire l'installateur soi-même
 
@@ -286,6 +307,11 @@ sans vous, ces cas resteront des angles morts. **C'est encore plus vrai pour la
 version Windows 11, toute nouvelle** : elle n'a tourné que sur une seule machine. C'est vraiment là que j'ai besoin
 de la communauté : **votre commentaire est le seul moyen de savoir comment l'app
 réagit sur votre matériel**, et donc de l'améliorer pour tout le monde.
+
+> **Sous Windows**, deux scripts de diagnostic sont fournis dans `scripts/` :
+> `test_afterburner.py` liste tous les capteurs qu'Afterburner publie sur votre machine,
+> et `test_rtss.py` inspecte la mémoire partagée de RivaTuner. Si une valeur reste vide
+> chez vous, leur sortie me dira pourquoi bien mieux qu'une capture d'écran.
 
 Pas besoin d'être développeur, ni de lancer quoi que ce soit. Un simple mot —
 « chez moi tout marche » ou « la température GPU affiche `—` » — m'aide déjà
