@@ -7,7 +7,11 @@ de Windows. Une fois le paquet accepté, l'installation tient en une ligne :
 winget install CachyMonitor
 ```
 
-| Fichier | Rôle |
+Les trois manifestes vivent dans `manifests/`, à l'écart de ce fichier : `winget
+validate` parse **tout** ce qu'il trouve dans le dossier qu'on lui donne, et
+s'étrangle sur un README écrit en Markdown.
+
+| Fichier (dans `manifests/`) | Rôle |
 |---|---|
 | `YOUNES-2-wq.CachyMonitor.yaml` | racine : identifiant, version, langue par défaut |
 | `YOUNES-2-wq.CachyMonitor.installer.yaml` | URL, empreinte SHA256, type d'installateur |
@@ -33,7 +37,7 @@ wingetcreate update YOUNES-2-wq.CachyMonitor `
 ## Vérifier avant de soumettre
 
 ```powershell
-winget validate --manifest packaging\winget
+winget validate --manifest packaging\winget\manifests
 ```
 
 Deux points valent d'être contrôlés à chaque version, parce qu'ils sont la cause

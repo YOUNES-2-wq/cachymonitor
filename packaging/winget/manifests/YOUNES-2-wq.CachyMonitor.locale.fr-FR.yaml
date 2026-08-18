@@ -1,6 +1,6 @@
 # Manifeste de localisation (langue par défaut) — winget-pkgs
 PackageIdentifier: YOUNES-2-wq.CachyMonitor
-PackageVersion: 1.3.1
+PackageVersion: 1.3.2
 PackageLocale: fr-FR
 Publisher: YOUNES-2-wq
 PublisherUrl: https://github.com/YOUNES-2-wq
@@ -36,6 +36,6 @@ Tags:
   - rtss
   - system-monitor
   - temperature
-ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.3.1
+ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.3.2
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0
