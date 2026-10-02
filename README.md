@@ -36,7 +36,7 @@ d'étranglement CPU/GPU, thème clair/sombre et interface en français ou en ang
 
 ---
 
-Moniteur système léger : **CPU, GPU, RAM, VRAM, températures et FPS**, avec graphes temps réel. Un seul fichier Python qui tourne sur **Linux et Windows 11**, une seule dépendance (PySide6).
+Moniteur système léger : **CPU, GPU, RAM, VRAM, températures et FPS**, avec graphes temps réel, plus la **batterie de ta manette**. Un seul fichier Python qui tourne sur **Linux et Windows 11**, une seule dépendance (PySide6).
 
 > ℹ️ Projet communautaire indépendant, créé par un utilisateur de CachyOS. **Non affilié à l'équipe officielle de CachyOS** — le nom traduit simplement l'affection pour la distribution.
 
@@ -82,6 +82,8 @@ compagnon, distincte du jeu, qui réunit dans une seule interface visuelle :
   consommation et températures, avec courbes de tendance ;
 - le tout **sans overlay** qui s'affiche par-dessus le jeu, dans une appli légère
   (un seul fichier Python, une seule dépendance) ;
+- la **manette** : modèle, connexion câble ou Bluetooth et niveau de batterie,
+  pour ne plus se faire surprendre en pleine partie *(Linux, pour l'instant)* ;
 - en **thème clair ou sombre**, au choix ou en suivant automatiquement le bureau.
 
 Les briques existaient déjà (MangoHud, Goverlay…), mais personne ne les avait
@@ -265,6 +267,7 @@ reste (interface, thèmes, langues, calcul des statistiques) est strictement com
 | RAM            | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`              |
 | GPU / VRAM     | `nvidia-smi`, `amdgpu`, `i915`        | `nvidia-smi`, puis capteurs Afterburner      |
 | FPS / session  | logs CSV de **MangoHud**              | **RivaTuner (RTSS)**, relevé toutes les 100 ms |
+| Manettes       | `/sys/class/input` + `power_supply`   | *pas encore pris en charge*                  |
 
 > Pourquoi 100 ms sous Windows : les « lows » ont besoin de beaucoup de points. À une
 > mesure par seconde, le 0.1 % low se calculerait sur 60 valeurs par minute et ne
@@ -319,6 +322,12 @@ Sous Windows, l'usage CPU, la RAM et le nom du processeur ne dépendent d'aucun
 matériel particulier et fonctionnent partout. À l'inverse, sur une carte non-NVIDIA
 le repli Afterburner affichera la carte sous le nom générique « GPU » et laissera la
 jauge VRAM à 0 % — Afterburner ne publie pas la VRAM totale.
+
+**Manettes (Linux)** : ✅ testé avec une **DualSense (PS5) en Bluetooth**. Les
+manettes Xbox (pilotes `xpad` / `xpadneo`), Switch Pro et DualShock 4 passent par
+les mêmes fichiers du noyau et devraient fonctionner, mais n'ont pas été essayées.
+Une manette dont le pilote ne publie pas sa batterie s'affiche quand même, avec
+`—` à la place du pourcentage.
 
 **Configurations réellement vérifiées** : AMD Ryzen 5 5600 + NVIDIA RTX 3060, sous
 CachyOS / KDE Plasma / Wayland **et** sous Windows 11 Pro 24H2 avec MSI Afterburner

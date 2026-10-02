@@ -6,7 +6,7 @@ Un seul fichier pour Linux ET Windows : chaque lecteur choisit sa source selon
 la plateforme, le reste de l'application (interface, thèmes, langues, calculs
 de statistiques) est strictement commun.
 
-    Linux    : /proc, /sys (hwmon), nvidia-smi, logs CSV MangoHud
+    Linux    : /proc, /sys (hwmon, manettes), nvidia-smi, logs CSV MangoHud
     Windows  : psutil, nvidia-smi, mémoire partagée MSI Afterburner et RTSS
 
 Dépendances : PySide6 partout, plus psutil sous Windows uniquement.
@@ -54,7 +54,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QSpinBox, QSizePolicy, QComboBox, QToolButton, QListView,
 )
 
-APP_VERSION = "1.3.2"
+APP_VERSION = "1.4.0"
 
 IS_WINDOWS = sys.platform.startswith("win")
 
@@ -167,6 +167,10 @@ TRANSLATIONS = {
         "Updated every {ms} ms": "Mise à jour toutes les {ms} ms",
         "GPU unavailable": "GPU indisponible",
         "GiB": "Gio",
+        # Manettes
+        "CONTROLLER": "MANETTE",
+        "No controller detected": "Aucune manette détectée",
+        "Wired (USB)": "Câble (USB)",
     },
 }
 
@@ -1188,6 +1192,91 @@ def _gpu_none():
     }
 
 
+# ----------------------------------------------------------------------------- #
+#  Manettes
+# ----------------------------------------------------------------------------- #
+#
+# Linux : chaque manette reconnue par le noyau a un nœud /sys/class/input/jsN.
+# Son périphérique d'entrée donne le nom et le bus (USB ou Bluetooth) ; la
+# batterie, quand le pilote la publie, est un « power_supply » rangé sous le même
+# périphérique HID (hid-playstation, hid-sony, hid-nintendo, xpadneo…) ou un
+# peu plus haut dans l'arbre pour les récepteurs sans fil USB (xpad).
+
+# Type de connexion, d'après /sys/.../id/bustype (valeurs de linux/input.h).
+# Un dongle sans fil USB (Xbox, 8BitDo) apparaît comme une connexion USB.
+BUS_TYPES = {0x03: "usb", 0x05: "bluetooth"}
+
+# Certains pilotes (xpad) ne donnent qu'un niveau, pas un pourcentage.
+# On le traduit en valeur approchée pour pouvoir dessiner la jauge.
+BATTERY_LEVELS = {"full": 100, "high": 75, "normal": 50, "low": 20, "critical": 5}
+
+# Préfixes de fabricant retirés du nom affiché, déjà assez long comme ça.
+CONTROLLER_NAME_PREFIXES = ("Sony Interactive Entertainment ", "Sony Computer Entertainment ",
+                            "Microsoft ", "Nintendo ")
+
+
+def _clean_controller_name(name):
+    for prefix in CONTROLLER_NAME_PREFIXES:
+        if name.startswith(prefix):
+            return name[len(prefix):]
+    return name
+
+
+def _controller_battery(dev_path):
+    """Batterie d'une manette : (pourcentage, état) ou (None, None).
+
+    On cherche sur le périphérique HID, puis deux niveaux au-dessus (interface
+    et appareil USB) : la batterie d'un récepteur sans fil USB est publiée là,
+    pas sur la manette. Monter plus haut, ce serait risquer de tomber sur la
+    batterie d'un autre appareil branché sur le même concentrateur.
+    """
+    path = dev_path
+    for _ in range(3):
+        for supply in sorted(glob.glob(os.path.join(path, "power_supply", "*"))):
+            if _read_first(os.path.join(supply, "scope"), "").lower() != "device":
+                continue
+            pct = _num(_read_first(os.path.join(supply, "capacity")))
+            if pct is None:
+                level = _read_first(os.path.join(supply, "capacity_level"), "").lower()
+                pct = BATTERY_LEVELS.get(level)
+            status = _read_first(os.path.join(supply, "status"), "").lower() or None
+            return (int(pct) if pct is not None else None), status
+        path = os.path.dirname(path)
+    return None, None
+
+
+def read_controllers():
+    """Liste des manettes connectées : nom, connexion, batterie.
+
+    Une manette peut exposer plusieurs nœuds jsN (rare), et la DualSense crée
+    aussi des périphériques pour son pavé tactile et ses capteurs de mouvement :
+    on dédoublonne par périphérique HID, qui est unique par manette.
+    """
+    if IS_WINDOWS:
+        return []
+    found, seen = [], set()
+    for js in sorted(glob.glob("/sys/class/input/js*")):
+        input_dev = os.path.realpath(os.path.join(js, "device"))
+        hid_dev = os.path.realpath(os.path.join(input_dev, "device"))
+        if hid_dev in seen:
+            continue
+        seen.add(hid_dev)
+
+        name = _read_first(os.path.join(input_dev, "name"), "") or "?"
+        try:
+            bus = int(_read_first(os.path.join(input_dev, "id", "bustype"), ""), 16)
+        except ValueError:
+            bus = None
+        battery, status = _controller_battery(hid_dev)
+        found.append({
+            "name": _clean_controller_name(name),
+            "bus": BUS_TYPES.get(bus),
+            "battery": battery,
+            "status": status,     # "charging", "discharging", "full"… ou None
+        })
+    return found
+
+
 def _percentile(sorted_vals, q):
     """q dans [0,1]. Renvoie la valeur au quantile q (méthode du plus proche rang)."""
     if not sorted_vals:
@@ -1641,6 +1730,10 @@ class Sampler(QThread):
             data.update(self._cpu.sample())
             data.update(read_ram())
             data.update(read_gpu())
+            try:
+                data["controllers"] = read_controllers()
+            except Exception:
+                data["controllers"] = []   # une manette exotique ne doit pas tout bloquer
 
             game = self._game.sample()
             if game is not None:
@@ -2108,6 +2201,156 @@ class GamePanel(QFrame):
         )
 
 
+def battery_role(pct):
+    """Couleur du niveau de batterie : vert, orange sous 50 %, rouge sous 20 %."""
+    if pct is None:
+        return "muted"
+    if pct > 50:
+        return "ok"
+    if pct > 20:
+        return "warn"
+    return "bad"
+
+
+class BatteryBar(QWidget):
+    """Petite pile horizontale remplie au niveau de charge."""
+
+    def __init__(self):
+        super().__init__()
+        self.pct = None
+        self.setFixedSize(34, 15)
+
+    def set(self, pct):
+        self.pct = pct
+        self.update()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        body = QRectF(0.5, 0.5, self.width() - 4.5, self.height() - 1)
+        p.setPen(QPen(QColor(col("muted")), 1))
+        p.setBrush(Qt.NoBrush)
+        p.drawRoundedRect(body, 3, 3)
+        # le téton de la pile
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(col("muted")))
+        p.drawRoundedRect(QRectF(body.right() + 0.5, body.height() * 0.3,
+                                 3, body.height() * 0.45), 1, 1)
+        if self.pct is not None:
+            inner = body.adjusted(2, 2, -2, -2)
+            inner.setWidth(inner.width() * max(0, min(self.pct, 100)) / 100)
+            p.setBrush(QColor(col(battery_role(self.pct))))
+            p.drawRoundedRect(inner, 1.5, 1.5)
+
+
+class ControllerRow(QHBoxLayout):
+    """Une manette : nom, type de connexion, pile et pourcentage."""
+
+    def __init__(self):
+        super().__init__()
+        self.setSpacing(8)
+        self.name = QLabel("")
+        self.name.setObjectName("cardHw")
+        self.link = QLabel("")
+        self.link.setObjectName("cardSub")
+        self.bar = BatteryBar()
+        self.pct = QLabel("")
+        self.pct.setMinimumWidth(44)
+        self.pct.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.addWidget(self.name)
+        self.addWidget(self.link)
+        self.addStretch()
+        self.addWidget(self.bar)
+        self.addWidget(self.pct)
+        self.role = "muted"
+        self.retheme()
+
+    def widgets(self):
+        return (self.name, self.link, self.bar, self.pct)
+
+    def set(self, c):
+        self.name.setText(c["name"])
+        self.link.setText(
+            {"usb": tr("Wired (USB)"), "bluetooth": "Bluetooth"}.get(c["bus"], "")
+        )
+
+        pct = c["battery"]
+        self.bar.set(pct)
+        if pct is not None:
+            # L'éclair signale la charge en cours (manette branchée en USB).
+            self.pct.setText(f"{'⚡' if c['status'] == 'charging' else ''}{pct}%")
+        else:
+            # Manette filaire sans batterie, ou pilote qui ne la publie pas.
+            self.pct.setText("—")
+        # Les couleurs ne sont reposées que si le niveau change de catégorie.
+        role = battery_role(pct)
+        if role != self.role:
+            self.role = role
+            self.retheme()
+
+    def retheme(self):
+        self.name.setStyleSheet(f"color:{col('text')};")
+        self.pct.setStyleSheet(
+            f"color:{col(self.role)}; font-size:15px; font-weight:700;"
+        )
+        self.bar.update()
+
+
+class ControllerPanel(QFrame):
+    """Manettes connectées : modèle, câble ou Bluetooth, niveau de batterie."""
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("card")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setSpacing(8)
+
+        top = QHBoxLayout()
+        self.dot = QLabel("●")
+        self.title = QLabel(tr("CONTROLLER"))
+        self.title.setObjectName("cardTitle")
+        top.addWidget(self.dot)
+        top.addWidget(self.title)
+        top.addStretch()
+        lay.addLayout(top)
+
+        self.rows_box = QVBoxLayout()
+        self.rows_box.setSpacing(6)
+        lay.addLayout(self.rows_box)
+        self.rows = []
+
+        self.empty = QLabel(tr("No controller detected"))
+        self.empty.setObjectName("cardSub")
+        lay.addWidget(self.empty)
+
+        self.retheme()
+
+    def update_controllers(self, controllers):
+        # Une ligne par manette. Les lignes en trop (manette déconnectée) sont
+        # masquées plutôt que détruites, et resserviront à la prochaine.
+        while len(self.rows) < len(controllers):
+            row = ControllerRow()
+            self.rows_box.addLayout(row)
+            self.rows.append(row)
+        for i, row in enumerate(self.rows):
+            shown = i < len(controllers)
+            for w in row.widgets():
+                w.setVisible(shown)
+            if shown:
+                row.set(controllers[i])
+        self.empty.setVisible(not controllers)
+
+    def retext(self):
+        self.title.setText(tr("CONTROLLER"))
+        self.empty.setText(tr("No controller detected"))
+
+    def retheme(self):
+        self.dot.setStyleSheet(f"color:{col('cpu')}; font-size:12px;")
+        for row in self.rows:
+            row.retheme()
+
+
 # ----------------------------------------------------------------------------- #
 #  Menu déroulant
 # ----------------------------------------------------------------------------- #
@@ -2182,13 +2425,15 @@ class MainWindow(QWidget):
         self.ram = GaugeCard("RAM", "ram")
         self.vram = GaugeCard("VRAM", "vram")
         self.game = GamePanel()
+        self.controllers = ControllerPanel()
 
         grid.addWidget(self.cpu, 0, 0)
         grid.addWidget(self.gpu, 0, 1)
         grid.addWidget(self.ram, 1, 0)
         grid.addWidget(self.vram, 1, 1)
-        grid.addWidget(self.game, 2, 0, 1, 2)
-        grid.setRowStretch(2, 1)
+        grid.addWidget(self.controllers, 2, 0, 1, 2)
+        grid.addWidget(self.game, 3, 0, 1, 2)
+        grid.setRowStretch(3, 1)
         root.addLayout(grid, 1)
 
         # Noms matériel statiques (lus une seule fois)
@@ -2312,6 +2557,7 @@ class MainWindow(QWidget):
                 combo.setItemText(i, tr(labels[combo.itemData(i)]))
 
         self.game.retext()
+        self.controllers.retext()
         # Capacité RAM : lue une seule fois au démarrage, son unité est traduite.
         self.ram.hw.setText(read_ram_name())
         if not self.started:
@@ -2335,7 +2581,8 @@ class MainWindow(QWidget):
         app.setPalette(build_palette())
         app.setStyleSheet(build_style())
         # Le QSS ne couvre pas les couleurs posées en ligne ni le QPainter.
-        for card in (self.cpu, self.gpu, self.ram, self.vram, self.game):
+        for card in (self.cpu, self.gpu, self.ram, self.vram, self.game,
+                     self.controllers):
             card.retheme()
         self.update()
 
@@ -2378,6 +2625,9 @@ class MainWindow(QWidget):
         vpct = (vu / vt * 100) if vt else 0
         self.vram.update_value(vpct, f"{vpct:.0f}%",
                                f"{vu/1024:.1f} / {vt/1024:.1f} {tr('GiB')}")
+
+        # Manettes
+        self.controllers.update_controllers(d.get("controllers", []))
 
         # Session de jeu (MangoHud)
         g = d.get("game")
