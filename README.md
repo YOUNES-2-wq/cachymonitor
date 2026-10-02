@@ -214,6 +214,14 @@ git clone https://github.com/YOUNES-2-wq/cachymonitor.git
 python3 cachymonitor/cachymonitor.py
 ```
 
+**4. (Optionnel) Ajoute CachyMonitor au menu des applications**, depuis le dossier
+où tu as cloné le dépôt. Le lanceur fourni vise une installation système (AUR) :
+cette commande en fait une copie qui pointe vers ton clone.
+
+```sh
+mkdir -p ~/.local/share/applications && sed -e "s|^Exec=.*|Exec=python3 $PWD/cachymonitor/cachymonitor.py|" -e "s|^Icon=.*|Icon=$PWD/cachymonitor/cachymonitor.svg|" cachymonitor/cachymonitor.desktop > ~/.local/share/applications/cachymonitor.desktop
+```
+
 > Optionnel selon ton matériel : `mangohud` (statistiques en jeu), `nvidia-utils`
 > (GPU NVIDIA), `pciutils` (nom du GPU), `dmidecode` (type/vitesse RAM). Chacun de ces
 > paquets s'installe de la même façon selon ta distro (`dnf`, `apt`, `zypper`…).
