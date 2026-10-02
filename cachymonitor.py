@@ -1292,24 +1292,35 @@ SONY_PADS = {
     0x0BA0: ("DualShock 4 (dongle)", "ds4"),
 }
 
-# Indice de l'octet d'état (batterie + charge) dans le rapport d'entrée, selon
-# la famille et le bus. En Bluetooth, le rapport porte un autre identifiant et
-# quelques octets d'en-tête de plus, d'où le décalage.
-SONY_STATUS_BYTE = {
-    ("dualsense", "usb"): 53,
-    ("dualsense", "bluetooth"): 54,
-    ("ds4", "usb"): 30,
-    ("ds4", "bluetooth"): 32,
+# (famille, bus) -> (rapport d'entrée à demander, indice de l'octet d'état).
+# En Bluetooth, la manette n'envoie d'elle-même qu'un rapport 0x01 réduit aux
+# boutons et aux joysticks : la batterie n'est que dans le rapport complet,
+# qu'il faut donc réclamer explicitement. Celui-ci porte un octet d'en-tête de
+# plus que son équivalent USB, d'où l'indice décalé d'un cran.
+SONY_REPORTS = {
+    ("dualsense", "usb"): (0x01, 53),
+    ("dualsense", "bluetooth"): (0x31, 54),
+    ("ds4", "usb"): (0x01, 30),
+    ("ds4", "bluetooth"): (0x11, 32),
 }
 
-# Identifiant du rapport -> bus. C'est la façon la plus sûre de distinguer USB
-# de Bluetooth sans interroger le gestionnaire de périphériques : la manette
-# change elle-même de format de rapport selon sa connexion.
-SONY_REPORT_BUS = {
-    0x01: "usb",          # rapport complet de 64 octets (DualSense et DS4)
-    0x31: "bluetooth",    # DualSense en mode complet
-    0x11: "bluetooth",    # DualShock 4 en mode complet
-}
+# Le plus grand rapport d'entrée d'une manette Sony fait 78 octets ; un tampon
+# plus grand que nécessaire est accepté par le pilote HID.
+SONY_REPORT_SIZE = 78
+
+# Protocoles Bluetooth reconnaissables dans le chemin du périphérique :
+# « HID over BR/EDR » et « HID over GATT » (basse consommation). Le chemin est
+# la seule source fiable du type de connexion — ni l'identifiant du rapport ni
+# sa longueur ne renseignent dessus, Windows complétant toujours la lecture à
+# la taille maximale déclarée par l'appareil.
+BLUETOOTH_HID_PROTOCOLS = ("{00001124-", "{00001812-")
+
+# Identifiant du fabricant tel qu'il apparaît dans le chemin d'un périphérique
+# HID : « vid_054c » en USB, « vid&0002054c » en Bluetooth (le préfixe code le
+# type de bus). Il sert de pré-filtre : la boucle de mesure passe par ici une
+# fois par seconde, et ouvrir les quinze ou vingt périphériques HID d'un PC à
+# chaque fois pour n'en garder qu'un serait du gâchis.
+HID_PATH_VID = re.compile(r"vid[_&](?:[0-9a-f]{4})?([0-9a-f]{4})")
 
 _hid_api_cache = None
 
@@ -1344,11 +1355,9 @@ def _hid_api():
         hid.HidD_GetAttributes.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         hid.HidD_GetProductString.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
                                               wintypes.ULONG]
+        hid.HidD_GetInputReport.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                            wintypes.ULONG]
 
-        k32.CreateFileW.restype = ctypes.c_void_p
-        k32.CreateFileW.argtypes = [ctypes.c_wchar_p, wintypes.DWORD, wintypes.DWORD,
-                                    ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD,
-                                    ctypes.c_void_p]
         k32.CreateEventW.restype = ctypes.c_void_p
         k32.CreateEventW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.BOOL,
                                      ctypes.c_wchar_p]
@@ -1358,6 +1367,10 @@ def _hid_api():
         k32.GetOverlappedResult.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
                                             ctypes.c_void_p, wintypes.BOOL]
         k32.CancelIo.argtypes = [ctypes.c_void_p]
+        k32.CreateFileW.restype = ctypes.c_void_p
+        k32.CreateFileW.argtypes = [ctypes.c_wchar_p, wintypes.DWORD, wintypes.DWORD,
+                                    ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD,
+                                    ctypes.c_void_p]
         k32.CloseHandle.restype = wintypes.BOOL
         k32.CloseHandle.argtypes = [ctypes.c_void_p]
         _hid_api_cache = (setup, hid, k32)
@@ -1368,9 +1381,10 @@ _hid_structs_cache = None
 
 
 def _hid_structs():
-    """Structures Win32 de l'énumération HID : (interface, détail, attributs,
-    overlapped). Construites une seule fois : ctypes recrée sinon un type
-    différent à chaque appel."""
+    """Structures Win32 de l'énumération HID : (GUID, interface, détail,
+    attributs, overlapped). Construites une seule fois : ctypes fabriquerait
+    sinon un type différent à chaque appel.
+    """
     global _hid_structs_cache
     if _hid_structs_cache is None:
         import ctypes
@@ -1402,8 +1416,8 @@ def _hid_structs():
                         ("hEvent", ctypes.c_void_p)]
 
         _hid_structs_cache = (GUID, SP_DEVICE_INTERFACE_DATA,
-                              SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-                              HIDD_ATTRIBUTES, OVERLAPPED)
+                              SP_DEVICE_INTERFACE_DETAIL_DATA_W, HIDD_ATTRIBUTES,
+                              OVERLAPPED)
     return _hid_structs_cache
 
 
@@ -1447,12 +1461,39 @@ def _hid_device_paths():
         setup.SetupDiDestroyDeviceInfoList(dev_info)
 
 
-def _hid_read(handle, size, timeout_ms=80):
-    """Un rapport d'entrée, ou None. Lecture asynchrone, donc non bloquante.
+def _hid_bus(path):
+    """Type de connexion d'un périphérique HID, d'après son chemin."""
+    low = path.lower()
+    if any(proto in low for proto in BLUETOOTH_HID_PROTOCOLS):
+        return "bluetooth"
+    return "usb" if "vid_" in low else None
 
-    Une manette au repos peut n'envoyer aucun rapport : une lecture synchrone
-    figerait le thread de mesure jusqu'au prochain geste du joueur. On lit donc
-    en mode « overlapped », avec un délai court, et on annule au-delà.
+
+def _hid_get_report(handle, report_id, size):
+    """Rapport RÉCLAMÉ à l'appareil (requête GET_REPORT), ou None.
+
+    C'est la seule façon d'obtenir le rapport complet en Bluetooth : la manette
+    n'y envoie d'elle-même qu'un rapport réduit aux boutons et aux joysticks.
+    Et c'est en lecture seule — lui imposer le mode complet lui prendrait la
+    main sur l'éclairage et les vibrations, au détriment des jeux.
+    """
+    import ctypes
+
+    _setup, hid, _k32 = _hid_api()
+    buf = (ctypes.c_ubyte * size)()
+    buf[0] = report_id
+    if not hid.HidD_GetInputReport(handle, buf, size):
+        return None
+    return bytes(buf)
+
+
+def _hid_stream_report(handle, size, timeout_ms=80):
+    """Premier rapport reçu du flux de l'appareil, ou None.
+
+    Second recours : en USB, la manette Sony refuse GET_REPORT (« échec
+    général »), mais elle émet ses rapports en continu — un arrive en quelques
+    millisecondes. La lecture est asynchrone et annulée au-delà du délai : une
+    manette silencieuse ne doit pas figer le thread de mesure.
     """
     import ctypes
     from ctypes import wintypes
@@ -1469,34 +1510,49 @@ def _hid_read(handle, size, timeout_ms=80):
     ov = overlapped_type()
     ov.hEvent = event
     try:
-        if k32.ReadFile(handle, buf, size, ctypes.byref(read), ctypes.byref(ov)):
-            return bytes(buf[:read.value])
-        if ctypes.GetLastError() != ERROR_IO_PENDING:
-            return None
-        if k32.WaitForSingleObject(event, timeout_ms) != WAIT_OBJECT_0:
-            # On attend la fin réelle de l'annulation : sans cela, le noyau
-            # pourrait encore écrire dans un tampon déjà libéré par Python.
-            k32.CancelIo(handle)
-            k32.GetOverlappedResult(handle, ctypes.byref(ov), ctypes.byref(read), True)
-            return None
-        if not k32.GetOverlappedResult(handle, ctypes.byref(ov),
-                                       ctypes.byref(read), False):
-            return None
+        if not k32.ReadFile(handle, buf, size, ctypes.byref(read), ctypes.byref(ov)):
+            if ctypes.GetLastError() != ERROR_IO_PENDING:
+                return None
+            if k32.WaitForSingleObject(event, timeout_ms) != WAIT_OBJECT_0:
+                # On attend la fin réelle de l'annulation : sans cela, le noyau
+                # pourrait encore écrire dans un tampon déjà libéré par Python.
+                k32.CancelIo(handle)
+                k32.GetOverlappedResult(handle, ctypes.byref(ov),
+                                        ctypes.byref(read), True)
+                return None
+            if not k32.GetOverlappedResult(handle, ctypes.byref(ov),
+                                           ctypes.byref(read), False):
+                return None
         return bytes(buf[:read.value])
     finally:
         k32.CloseHandle(event)
 
 
-def _sony_battery(family, bus, report):
+def _hid_input_report(handle, report_id, size=SONY_REPORT_SIZE):
+    """Un rapport d'entrée de l'identifiant demandé, ou None.
+
+    Aucune des deux méthodes ne marche sur les deux bus : la manette répond à
+    GET_REPORT en Bluetooth mais le refuse en USB, où elle diffuse en revanche
+    ses rapports en continu. On essaie donc l'une puis l'autre.
+    """
+    # Un appareil peut répondre par un autre rapport que celui demandé : les
+    # indices ne voudraient alors rien dire.
+    def utilisable(report):
+        return report is not None and len(report) > 1 and report[0] == report_id
+
+    report = _hid_get_report(handle, report_id, size)
+    if utilisable(report):
+        return report
+    report = _hid_stream_report(handle, size)
+    return report if utilisable(report) else None
+
+
+def _sony_battery(family, status_byte):
     """Batterie d'une manette Sony : (pourcentage, état) ou (None, None).
 
     Décodage repris des pilotes Linux : le matériel ne publie qu'un niveau par
     dizaine, dont on prend le milieu (0 = 0-9 %, 1 = 10-19 %…).
     """
-    index = SONY_STATUS_BYTE.get((family, bus))
-    if index is None or report is None or len(report) <= index:
-        return None, None
-    status_byte = report[index]
     level = status_byte & 0x0F
 
     if family == "dualsense":
@@ -1519,6 +1575,30 @@ def _sony_battery(family, bus, report):
     return min(level * 10 + 5, 100), "charging"
 
 
+def _sony_pad(handle, path, product_id):
+    """Une manette Sony : nom, bus, batterie, à partir d'un périphérique ouvert."""
+    import ctypes
+
+    _setup, hid, _k32 = _hid_api()
+    label, family = SONY_PADS[product_id]
+
+    name_buf = ctypes.create_unicode_buffer(128)
+    if hid.HidD_GetProductString(handle, name_buf, ctypes.sizeof(name_buf)):
+        product = _clean_controller_name((name_buf.value or "").strip())
+        if product:
+            label = product
+
+    bus = _hid_bus(path)
+    battery = status = None
+    wanted = SONY_REPORTS.get((family, bus))
+    if wanted is not None:
+        report_id, index = wanted
+        report = _hid_input_report(handle, report_id)
+        if report is not None and len(report) > index:
+            battery, status = _sony_battery(family, report[index])
+    return {"name": label, "bus": bus, "battery": battery, "status": status}
+
+
 def _hid_sony_controllers():
     """Manettes Sony vues en HID brut : nom, bus, batterie."""
     import ctypes
@@ -1531,8 +1611,11 @@ def _hid_sony_controllers():
     OPEN_EXISTING, FILE_FLAG_OVERLAPPED = 3, 0x40000000
     INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
-    found, seen = [], set()
+    found = {}
     for path in _hid_device_paths():
+        vid = HID_PATH_VID.search(path.lower())
+        if vid is None or int(vid.group(1), 16) != SONY_VID:
+            continue
         handle = k32.CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
                                  FILE_SHARE_READ | FILE_SHARE_WRITE, None,
                                  OPEN_EXISTING, FILE_FLAG_OVERLAPPED, None)
@@ -1547,35 +1630,19 @@ def _hid_sony_controllers():
                 continue
             if attrs.VendorID != SONY_VID or attrs.ProductID not in SONY_PADS:
                 continue
-            # La DualSense expose plusieurs interfaces HID (pavé tactile,
-            # capteurs) : une seule par modèle suffit, comme on dédoublonne
-            # par périphérique HID sous Linux.
-            if attrs.ProductID in seen:
-                continue
-            seen.add(attrs.ProductID)
 
-            label, family = SONY_PADS[attrs.ProductID]
-            name_buf = ctypes.create_unicode_buffer(128)
-            if hid.HidD_GetProductString(handle, name_buf, ctypes.sizeof(name_buf)):
-                product = _clean_controller_name((name_buf.value or "").strip())
-                if product:
-                    label = product
-
-            # Le format du rapport trahit la connexion : la manette passe
-            # d'elle-même en rapport 0x31 / 0x11 dès qu'elle est en Bluetooth.
-            report = _hid_read(handle, 78)
-            bus = SONY_REPORT_BUS.get(report[0]) if report else None
-            if bus == "usb" and len(report) < 64:
-                # Rapport 0x01 court : DualSense en Bluetooth « mode minimal »,
-                # tant qu'aucun logiciel ne lui a demandé le rapport complet.
-                # Il ne contient pas la batterie.
-                bus, report = "bluetooth", None
-            battery, status = _sony_battery(family, bus, report)
-            found.append({"name": label, "bus": bus,
-                          "battery": battery, "status": status})
+            pad = _sony_pad(handle, path, attrs.ProductID)
+            # Une manette expose plusieurs interfaces HID (pavé tactile,
+            # capteurs de mouvement, et une par collection sous USB) : on n'en
+            # garde qu'une, celle qui a répondu la batterie — comme on
+            # dédoublonne par périphérique HID sous Linux.
+            key = (attrs.ProductID, pad["bus"])
+            if key not in found or (found[key]["battery"] is None
+                                    and pad["battery"] is not None):
+                found[key] = pad
         finally:
             k32.CloseHandle(handle)
-    return found
+    return list(found.values())
 
 
 def _xinput_controllers():
