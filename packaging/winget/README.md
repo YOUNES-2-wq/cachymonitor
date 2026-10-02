@@ -1,11 +1,16 @@
 # Manifeste winget
 
 Ces trois fichiers décrivent CachyMonitor pour **winget**, le gestionnaire de paquets
-de Windows. Une fois le paquet accepté, l'installation tient en une ligne :
+de Windows. Le paquet `YOUNES-2-wq.CachyMonitor` est **accepté dans le catalogue
+officiel** depuis la 1.3.2
+([microsoft/winget-pkgs#419610](https://github.com/microsoft/winget-pkgs/pull/419610)) :
+l'installation tient en une ligne.
 
 ```powershell
-winget install CachyMonitor
+winget install cachymonitor
 ```
+
+Ces fichiers sont la copie de référence de la dernière version soumise.
 
 Les trois manifestes vivent dans `manifests/`, à l'écart de ce fichier : `winget
 validate` parse **tout** ce qu'il trouve dans le dossier qu'on lui donne, et
@@ -24,13 +29,14 @@ Les manifestes y vivent dans `manifests/y/YOUNES-2-wq/CachyMonitor/<version>/`, 
 mise à jour passe par une pull request soumise à modération.
 
 Le plus simple est d'utiliser l'outil officiel, qui recalcule l'empreinte, met les
-fichiers à jour et ouvre la pull request :
+fichiers à jour et ouvre la pull request (remplacer `<version>` par le numéro, par
+exemple `1.3.3`) :
 
 ```powershell
 winget install Microsoft.WingetCreate
 wingetcreate update YOUNES-2-wq.CachyMonitor `
-    --version 1.3.1 `
-    --urls https://github.com/YOUNES-2-wq/cachymonitor/releases/download/v1.3.1/CachyMonitor-Setup-1.3.1.exe `
+    --version <version> `
+    --urls https://github.com/YOUNES-2-wq/cachymonitor/releases/download/v<version>/CachyMonitor-Setup-<version>.exe `
     --submit
 ```
 

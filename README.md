@@ -4,7 +4,14 @@
 
 ### Le même moniteur gaming, désormais sur Linux **et** sur Windows 11.
 
-**[Télécharger l'installateur Windows (CachyMonitor-Setup.exe)](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**
+Disponible sur **winget**, le gestionnaire de paquets officiel de Windows. Dans un
+terminal (PowerShell ou Invite de commandes) :
+
+```powershell
+winget install cachymonitor
+```
+
+Ou **[télécharger l'installateur Windows (CachyMonitor-Setup.exe)](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**.
 
 On double-clique, on installe, ça marche : ni Python ni PySide6 à installer, tout est
 dans l'exécutable. Toutes les fonctions de la version Linux sont là — statistiques de
@@ -83,6 +90,24 @@ l'idée de CachyMonitor : ne pas réinventer la mesure, mais la rendre **lisible
 analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne serait possible.
 
 ## Installation sur Windows 11
+
+### Avec winget (recommandé)
+
+CachyMonitor est publié dans le catalogue officiel de **winget**, le gestionnaire de
+paquets intégré à Windows 11. Ouvrir un terminal (PowerShell ou Invite de commandes)
+et taper :
+
+```powershell
+winget install cachymonitor
+```
+
+Les mises à jour s'installent ensuite avec :
+
+```powershell
+winget upgrade cachymonitor
+```
+
+### Avec l'installateur
 
 **[Télécharger CachyMonitor-Setup.exe](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**,
 puis double-cliquer. L'assistant propose d'installer pour tous les utilisateurs ou pour
