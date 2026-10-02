@@ -1,7 +1,8 @@
 ; Installateur Windows de CachyMonitor (Inno Setup 6).
 ;
-; Il empaquette l'exécutable autonome produit par PyInstaller : la personne qui
-; installe n'a donc besoin ni de Python, ni de PySide6, ni de psutil.
+; Il empaquette le dossier autonome produit par PyInstaller (l'exécutable et ses
+; bibliothèques) : la personne qui installe n'a donc besoin ni de Python, ni de
+; PySide6, ni de psutil.
 ;
 ; Fabrication : voir build.ps1, dans ce même dossier.
 
@@ -57,7 +58,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\..\dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Tout le dossier produit par PyInstaller : l'exécutable, et ses bibliothèques
+; dans le sous-dossier _internal.
+Source: "..\..\dist\{#AppName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\README.md";          DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE";            DestDir: "{app}"; Flags: ignoreversion
 

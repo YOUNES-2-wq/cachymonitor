@@ -1,7 +1,14 @@
 # Fabrique l'installateur Windows de CachyMonitor.
 #
-#   1. PyInstaller empaquette cachymonitor.py, Python et Qt en un seul .exe
-#   2. Inno Setup enrobe cet .exe dans un installateur classique
+#   1. PyInstaller empaquette cachymonitor.py, Python et Qt dans un dossier
+#   2. Inno Setup enrobe ce dossier dans un installateur classique
+#
+# Le mode --onedir (un .exe et ses bibliothèques côte à côte) est préféré au
+# mode --onefile (un .exe unique qui se décompresse dans un dossier temporaire
+# à chaque lancement) pour deux raisons : le démarrage est immédiat, et surtout
+# le bootloader auto-extractible de --onefile déclenchait des faux positifs
+# heuristiques chez quatre antivirus sur soixante-dix. L'utilisateur ne voit
+# aucune différence : tout reste enrobé dans l'installateur.
 #
 # Prérequis :
 #   python -m pip install pyinstaller pyside6 psutil
@@ -53,7 +60,9 @@ VSVersionInfo(
 "@ | Set-Content -Path $versionFile -Encoding UTF8
 
 Write-Host "== 1/2  Empaquetage de l'executable (PyInstaller)" -ForegroundColor Cyan
-python -m PyInstaller --noconfirm --clean --onefile --windowed `
+# --noupx : si UPX arrive un jour dans le PATH, PyInstaller s'en servirait tout
+# seul pour compresser les DLL, ce qui ramènerait les faux positifs antivirus.
+python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
     --name CachyMonitor `
     --icon         (Join-Path $root "cachymonitor.ico") `
     --version-file $versionFile `
