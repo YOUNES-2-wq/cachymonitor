@@ -49,7 +49,9 @@ if cm.IS_WINDOWS:
     _setup, hid, k32 = cm._hid_api()
     attrs_type = cm._hid_structs()[3]
     GENERIC_READ, GENERIC_WRITE = 0x80000000, 0x40000000
-    OPEN_EXISTING = 3
+    # FILE_FLAG_OVERLAPPED comme dans l'application : sans lui, la lecture du
+    # flux attendrait sans limite de temps et le diagnostic resterait muet.
+    OPEN_EXISTING, FILE_FLAG_OVERLAPPED = 3, 0x40000000
     INVALID = ctypes.c_void_p(-1).value
 
     paths = cm._hid_device_paths()
@@ -57,7 +59,7 @@ if cm.IS_WINDOWS:
     sony = 0
     for path in paths:
         handle = k32.CreateFileW(path, GENERIC_READ | GENERIC_WRITE, 0x03, None,
-                                 OPEN_EXISTING, 0, None)
+                                 OPEN_EXISTING, FILE_FLAG_OVERLAPPED, None)
         if not handle or handle == INVALID:
             continue
         try:
@@ -74,12 +76,15 @@ if cm.IS_WINDOWS:
                 product = (name_buf.value or "").strip()
             known = cm.SONY_PADS.get(attrs.ProductID)
             bus = cm._hid_bus(path)
+            serial = cm._hid_serial(handle)
             log()
             log("  VID %04X  PID %04X  « %s »"
                 % (attrs.VendorID, attrs.ProductID, product or "?"))
             log("  modele reconnu : %s"
                 % (known[0] if known else "NON (a ajouter dans SONY_PADS)"))
             log("  bus deduit du chemin : %s" % (bus or "inconnu"))
+            log("  numero de serie (cle de dedoublonnage) : %s"
+                % (serial or "absent"))
             log("  chemin : %s" % path)
             if not known or not bus:
                 continue
@@ -96,10 +101,14 @@ if cm.IS_WINDOWS:
                     % (report_id, ctypes.GetLastError()))
                 continue
             log("  rapport 0x%02X obtenu, %d octets" % (report[0], len(report)))
-            log("  octet d'etat (indice %d) : 0x%02X" % (index, report[index]))
-            battery, status = cm._sony_battery(family, report[index])
-            log("  decodage : batterie %s, etat %s"
-                % ("%d%%" % battery if battery is not None else "-", status))
+            if len(report) <= index:
+                log("  rapport trop court : l'octet d'etat (indice %d) n'y est "
+                    "pas. Modele different de celui attendu ?" % index)
+            else:
+                log("  octet d'etat (indice %d) : 0x%02X" % (index, report[index]))
+                battery, status = cm._sony_battery(family, report[index])
+                log("  decodage : batterie %s, etat %s"
+                    % ("%d%%" % battery if battery is not None else "-", status))
             hexdump(report)
         finally:
             k32.CloseHandle(handle)

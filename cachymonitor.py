@@ -1270,9 +1270,14 @@ def _controller_battery(dev_path):
 # approché, comme BATTERY_LEVELS le fait pour les niveaux du pilote xpad.
 XINPUT_BATTERY = {0: 5, 1: 20, 2: 50, 3: 100}
 
-# BATTERY_TYPE_DISCONNECTED (pas de batterie lisible) et BATTERY_TYPE_WIRED.
-XINPUT_BAT_DISCONNECTED = 0x00
+# Manette filaire : pas de batterie, mais une connexion connue.
 XINPUT_BAT_WIRED = 0x01
+# Les deux seuls types où le niveau veut dire quelque chose : piles alcalines
+# et accu. Les autres — DISCONNECTED (0x00) et UNKNOWN (0xFF), que renvoient
+# beaucoup de manettes tierces et les manettes virtuelles de Steam ou
+# DS4Windows — laissent un niveau qui ne signifie rien : mieux vaut n'afficher
+# aucune batterie qu'un pourcentage inventé.
+XINPUT_BAT_WIRELESS = (0x02, 0x03)
 
 # xinput1_4 est celle de Windows 8 et suivants, donc toujours présente sur
 # Windows 11 ; les deux autres ne servent que si l'app tourne ailleurs.
@@ -1352,9 +1357,18 @@ def _hid_api():
             ctypes.c_void_p, ctypes.c_void_p]
         setup.SetupDiDestroyDeviceInfoList.argtypes = [ctypes.c_void_p]
 
+        # Ces fonctions renvoient un BOOLEAN, c'est-à-dire UN octet : sans
+        # restype, ctypes lit un entier de 32 bits dont les octets de poids
+        # fort sont laissés indéterminés par la convention d'appel 64-bit, et
+        # un échec peut passer pour un succès.
+        for name in ("HidD_GetAttributes", "HidD_GetProductString",
+                     "HidD_GetSerialNumberString", "HidD_GetInputReport"):
+            getattr(hid, name).restype = ctypes.c_ubyte
         hid.HidD_GetAttributes.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         hid.HidD_GetProductString.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
                                               wintypes.ULONG]
+        hid.HidD_GetSerialNumberString.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                                   wintypes.ULONG]
         hid.HidD_GetInputReport.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
                                             wintypes.ULONG]
 
@@ -1469,6 +1483,17 @@ def _hid_bus(path):
     return "usb" if "vid_" in low else None
 
 
+def _hid_serial(handle):
+    """Numéro de série d'un périphérique HID, ou None."""
+    import ctypes
+
+    _setup, hid, _k32 = _hid_api()
+    buf = ctypes.create_unicode_buffer(128)
+    if not hid.HidD_GetSerialNumberString(handle, buf, ctypes.sizeof(buf)):
+        return None
+    return (buf.value or "").strip() or None
+
+
 def _hid_get_report(handle, report_id, size):
     """Rapport RÉCLAMÉ à l'appareil (requête GET_REPORT), ou None.
 
@@ -1481,10 +1506,17 @@ def _hid_get_report(handle, report_id, size):
 
     _setup, hid, _k32 = _hid_api()
     buf = (ctypes.c_ubyte * size)()
+    # L'identifiant du rapport voulu se met dans le premier octet, qui ne peut
+    # donc pas servir à vérifier que l'appareil a répondu quelque chose.
     buf[0] = report_id
     if not hid.HidD_GetInputReport(handle, buf, size):
         return None
-    return bytes(buf)
+    report = bytes(buf)
+    # Un vrai rapport de manette n'est jamais vide : il porte au moins des
+    # joysticks au repos (0x80) et un horodatage. Tout à zéro, c'est un tampon
+    # resté intact, qu'il ne faut pas décoder — la batterie en sortirait à 5 %
+    # alors qu'on n'en sait rien.
+    return report if any(report[1:]) else None
 
 
 def _hid_stream_report(handle, size, timeout_ms=80):
@@ -1633,10 +1665,15 @@ def _hid_sony_controllers():
 
             pad = _sony_pad(handle, path, attrs.ProductID)
             # Une manette expose plusieurs interfaces HID (pavé tactile,
-            # capteurs de mouvement, et une par collection sous USB) : on n'en
+            # capteurs de mouvement, une par collection sous USB) : on n'en
             # garde qu'une, celle qui a répondu la batterie — comme on
             # dédoublonne par périphérique HID sous Linux.
-            key = (attrs.ProductID, pad["bus"])
+            # Le dédoublonnage se fait sur le numéro de série, qui est l'adresse
+            # MAC sur les manettes Sony : identique d'une interface à l'autre
+            # pour une même manette, mais différent entre deux manettes du même
+            # modèle. Sans lui, deux DualSense n'en feraient qu'une à l'écran —
+            # justement le cas où connaître sa batterie importe.
+            key = _hid_serial(handle) or (attrs.ProductID, pad["bus"])
             if key not in found or (found[key]["battery"] is None
                                     and pad["battery"] is not None):
                 found[key] = pad
@@ -1645,32 +1682,56 @@ def _hid_sony_controllers():
     return list(found.values())
 
 
+_xinput_cache = None
+
+
+def _xinput():
+    """(dll, XINPUT_STATE, XINPUT_BATTERY_INFORMATION), ou None sans XInput.
+
+    Posé une seule fois : la boucle de mesure passe ici chaque seconde, et
+    ctypes ne décharge jamais une bibliothèque qu'il a chargée — son compteur
+    de références monterait indéfiniment, et les structures seraient refaites à
+    chaque appel.
+    """
+    global _xinput_cache
+    if _xinput_cache is None:
+        import ctypes
+        from ctypes import wintypes
+
+        class XINPUT_STATE(ctypes.Structure):
+            _fields_ = [("dwPacketNumber", wintypes.DWORD),
+                        ("wButtons", wintypes.WORD),
+                        ("bLeftTrigger", ctypes.c_ubyte),
+                        ("bRightTrigger", ctypes.c_ubyte),
+                        ("sThumbLX", ctypes.c_short), ("sThumbLY", ctypes.c_short),
+                        ("sThumbRX", ctypes.c_short), ("sThumbRY", ctypes.c_short)]
+
+        class XINPUT_BATTERY_INFORMATION(ctypes.Structure):
+            _fields_ = [("BatteryType", ctypes.c_ubyte),
+                        ("BatteryLevel", ctypes.c_ubyte)]
+
+        dll = None
+        for name in XINPUT_DLLS:
+            try:
+                dll = ctypes.windll.LoadLibrary(name)
+                break
+            except OSError:
+                continue
+        # False plutôt que None : on retient que la recherche a déjà échoué,
+        # au lieu de recharger la bibliothèque absente à chaque seconde.
+        _xinput_cache = ((dll, XINPUT_STATE, XINPUT_BATTERY_INFORMATION)
+                         if dll is not None else False)
+    return _xinput_cache or None
+
+
 def _xinput_controllers():
     """Manettes vues par XInput : batterie en quatre niveaux, sans modèle."""
     import ctypes
-    from ctypes import wintypes
 
-    class XINPUT_STATE(ctypes.Structure):
-        _fields_ = [("dwPacketNumber", wintypes.DWORD),
-                    ("wButtons", wintypes.WORD),
-                    ("bLeftTrigger", ctypes.c_ubyte),
-                    ("bRightTrigger", ctypes.c_ubyte),
-                    ("sThumbLX", ctypes.c_short), ("sThumbLY", ctypes.c_short),
-                    ("sThumbRX", ctypes.c_short), ("sThumbRY", ctypes.c_short)]
-
-    class XINPUT_BATTERY_INFORMATION(ctypes.Structure):
-        _fields_ = [("BatteryType", ctypes.c_ubyte),
-                    ("BatteryLevel", ctypes.c_ubyte)]
-
-    dll = None
-    for name in XINPUT_DLLS:
-        try:
-            dll = ctypes.windll.LoadLibrary(name)
-            break
-        except OSError:
-            continue
-    if dll is None:
+    api = _xinput()
+    if api is None:
         return []
+    dll, XINPUT_STATE, XINPUT_BATTERY_INFORMATION = api
 
     get_battery = getattr(dll, "XInputGetBatteryInformation", None)
 
@@ -1687,7 +1748,7 @@ def _xinput_controllers():
             if get_battery(user, 0, ctypes.byref(info)) == 0:
                 if info.BatteryType == XINPUT_BAT_WIRED:
                     bus = "usb"
-                elif info.BatteryType != XINPUT_BAT_DISCONNECTED:
+                elif info.BatteryType in XINPUT_BAT_WIRELESS:
                     # Sans fil : XInput ne dit pas si c'est le dongle USB ou le
                     # Bluetooth, et se tromper afficherait une fausse info.
                     battery = XINPUT_BATTERY.get(info.BatteryLevel)
