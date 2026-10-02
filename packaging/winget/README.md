@@ -3,8 +3,10 @@
 Ces trois fichiers décrivent CachyMonitor pour **winget**, le gestionnaire de paquets
 de Windows. Le paquet `YOUNES-2-wq.CachyMonitor` est **accepté dans le catalogue
 officiel** depuis la 1.3.2
-([microsoft/winget-pkgs#419610](https://github.com/microsoft/winget-pkgs/pull/419610)) :
-l'installation tient en une ligne.
+([microsoft/winget-pkgs#419610](https://github.com/microsoft/winget-pkgs/pull/419610),
+fusionnée le 19/09/2026) : l'installation tient en une ligne. La mise à jour vers la
+1.4.1 est soumise dans
+[microsoft/winget-pkgs#445910](https://github.com/microsoft/winget-pkgs/pull/445910).
 
 ```powershell
 winget install cachymonitor
@@ -30,15 +32,23 @@ mise à jour passe par une pull request soumise à modération.
 
 Le plus simple est d'utiliser l'outil officiel, qui recalcule l'empreinte, met les
 fichiers à jour et ouvre la pull request (remplacer `<version>` par le numéro, par
-exemple `1.3.3`) :
+exemple `1.4.2`) :
 
 ```powershell
 winget install Microsoft.WingetCreate
 wingetcreate update YOUNES-2-wq.CachyMonitor `
     --version <version> `
-    --urls https://github.com/YOUNES-2-wq/cachymonitor/releases/download/v<version>/CachyMonitor-Setup-<version>.exe `
+    --urls "https://github.com/YOUNES-2-wq/cachymonitor/releases/download/v<version>/CachyMonitor-Setup-<version>.exe|x64|user" `
+    --out packaging\winget\manifests-generes `
     --submit
 ```
+
+⚠️ **Le `|x64|user` à la fin de l'URL n'est pas décoratif.** Sans lui, l'outil refuse
+de travailler : *« Plusieurs correspondances trouvées pour X86 Inno »*. Le bootstrapper
+d'un installateur Inno Setup est un binaire 32 bits, même quand il installe une
+application 64 bits — l'outil le détecte donc comme x86 et n'arrive plus à le rattacher
+au nœud `Architecture: x64` du manifeste publié. Le suffixe impose l'architecture et la
+portée à la main.
 
 ## Vérifier avant de soumettre
 
