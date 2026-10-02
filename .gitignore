@@ -12,3 +12,6 @@ __pycache__/
 build/
 dist/
 *.spec
+
+# Sorties des scripts de diagnostic : propres a une machine, pas a versionner.
+scripts/*_result.txt

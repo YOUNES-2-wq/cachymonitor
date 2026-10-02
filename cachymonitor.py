@@ -7,7 +7,8 @@ la plateforme, le reste de l'application (interface, thèmes, langues, calculs
 de statistiques) est strictement commun.
 
     Linux    : /proc, /sys (hwmon, manettes), nvidia-smi, logs CSV MangoHud
-    Windows  : psutil, nvidia-smi, mémoire partagée MSI Afterburner et RTSS
+    Windows  : psutil, nvidia-smi, mémoire partagée MSI Afterburner et RTSS,
+               manettes via XInput et HID brut
 
 Dépendances : PySide6 partout, plus psutil sous Windows uniquement.
 Aucune autre librairie : les graphes sont dessinés au QPainter.
@@ -28,6 +29,7 @@ correspondant :
   * GPU AMD (Radeon)           -> pilote amdgpu via /sys      [Linux]
   * GPU Intel (i915 / xe)      -> partiel, /sys               [Linux]
   * GPU non-NVIDIA sous Windows -> capteurs Afterburner       [Windows]
+  * manette Xbox sous Windows  -> XInput                     [Windows]
 
 Si vous testez sur l'une de ces configurations, les retours sont les
 bienvenus : ouvrez une « issue » avec la sortie de `scripts/hw-report.sh`
@@ -1245,6 +1247,404 @@ def _controller_battery(dev_path):
     return None, None
 
 
+# --------------------------------------------------------------------------
+#  Manettes sous Windows
+# --------------------------------------------------------------------------
+# Windows n'a pas d'équivalent de /sys : il faut deux sources, aucune ne
+# couvrant tout le matériel.
+#
+#   · XInput (xinput1_4.dll) : les manettes Xbox et toutes celles qui se font
+#     passer pour elles. L'API ne donne QUE quatre niveaux de batterie (pas un
+#     pourcentage) et aucun nom de modèle — elle ne le publie pas.
+#   · HID brut : les manettes Sony (DualSense, DualShock 4), que Windows ne
+#     présente pas comme des manettes XInput. Le nom vient du descripteur USB,
+#     la batterie du rapport d'entrée, décodé comme le fait le pilote Linux
+#     (hid-playstation pour la DualSense, hid-sony pour la DualShock 4).
+#
+# Si DS4Windows ou Steam traduit une manette Sony en manette Xbox, la même
+# manette physique apparaît des deux côtés. Rien ne permet de relier la manette
+# virtuelle à son original : on préfère l'afficher en double plutôt que de
+# masquer une vraie seconde manette.
+
+# Niveaux XInput (BATTERY_LEVEL_EMPTY/LOW/MEDIUM/FULL) ramenés à un pourcentage
+# approché, comme BATTERY_LEVELS le fait pour les niveaux du pilote xpad.
+XINPUT_BATTERY = {0: 5, 1: 20, 2: 50, 3: 100}
+
+# BATTERY_TYPE_DISCONNECTED (pas de batterie lisible) et BATTERY_TYPE_WIRED.
+XINPUT_BAT_DISCONNECTED = 0x00
+XINPUT_BAT_WIRED = 0x01
+
+# xinput1_4 est celle de Windows 8 et suivants, donc toujours présente sur
+# Windows 11 ; les deux autres ne servent que si l'app tourne ailleurs.
+# xinput9_1_0 n'a pas XInputGetBatteryInformation : la manette est alors
+# détectée, mais sans batterie.
+XINPUT_DLLS = ("xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll")
+
+XUSER_MAX_COUNT = 4
+
+SONY_VID = 0x054C
+# PID -> (nom affiché par défaut, famille de décodage du rapport d'entrée)
+SONY_PADS = {
+    0x0CE6: ("DualSense", "dualsense"),
+    0x0DF2: ("DualSense Edge", "dualsense"),
+    0x05C4: ("DualShock 4", "ds4"),
+    0x09CC: ("DualShock 4", "ds4"),
+    0x0BA0: ("DualShock 4 (dongle)", "ds4"),
+}
+
+# Indice de l'octet d'état (batterie + charge) dans le rapport d'entrée, selon
+# la famille et le bus. En Bluetooth, le rapport porte un autre identifiant et
+# quelques octets d'en-tête de plus, d'où le décalage.
+SONY_STATUS_BYTE = {
+    ("dualsense", "usb"): 53,
+    ("dualsense", "bluetooth"): 54,
+    ("ds4", "usb"): 30,
+    ("ds4", "bluetooth"): 32,
+}
+
+# Identifiant du rapport -> bus. C'est la façon la plus sûre de distinguer USB
+# de Bluetooth sans interroger le gestionnaire de périphériques : la manette
+# change elle-même de format de rapport selon sa connexion.
+SONY_REPORT_BUS = {
+    0x01: "usb",          # rapport complet de 64 octets (DualSense et DS4)
+    0x31: "bluetooth",    # DualSense en mode complet
+    0x11: "bluetooth",    # DualShock 4 en mode complet
+}
+
+_hid_api_cache = None
+
+
+def _hid_api():
+    """setupapi + hid + kernel32, signatures posées une fois pour toutes.
+
+    Les pointeurs et les handles doivent être déclarés explicitement : sans
+    restype, ctypes les tronque à 32 bits et le processus meurt en
+    ACCESS_VIOLATION — le même piège que pour la mémoire partagée.
+    """
+    global _hid_api_cache
+    if _hid_api_cache is None:
+        import ctypes
+        from ctypes import wintypes
+
+        setup = ctypes.windll.setupapi
+        hid = ctypes.windll.hid
+        k32 = ctypes.windll.kernel32
+
+        setup.SetupDiGetClassDevsW.restype = ctypes.c_void_p
+        setup.SetupDiGetClassDevsW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p,
+                                               ctypes.c_void_p, wintypes.DWORD]
+        setup.SetupDiEnumDeviceInterfaces.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                                      ctypes.c_void_p, wintypes.DWORD,
+                                                      ctypes.c_void_p]
+        setup.SetupDiGetDeviceInterfaceDetailW.argtypes = [
+            ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD,
+            ctypes.c_void_p, ctypes.c_void_p]
+        setup.SetupDiDestroyDeviceInfoList.argtypes = [ctypes.c_void_p]
+
+        hid.HidD_GetAttributes.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        hid.HidD_GetProductString.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                              wintypes.ULONG]
+
+        k32.CreateFileW.restype = ctypes.c_void_p
+        k32.CreateFileW.argtypes = [ctypes.c_wchar_p, wintypes.DWORD, wintypes.DWORD,
+                                    ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD,
+                                    ctypes.c_void_p]
+        k32.CreateEventW.restype = ctypes.c_void_p
+        k32.CreateEventW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.BOOL,
+                                     ctypes.c_wchar_p]
+        k32.ReadFile.argtypes = [ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD,
+                                 ctypes.c_void_p, ctypes.c_void_p]
+        k32.WaitForSingleObject.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+        k32.GetOverlappedResult.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                            ctypes.c_void_p, wintypes.BOOL]
+        k32.CancelIo.argtypes = [ctypes.c_void_p]
+        k32.CloseHandle.restype = wintypes.BOOL
+        k32.CloseHandle.argtypes = [ctypes.c_void_p]
+        _hid_api_cache = (setup, hid, k32)
+    return _hid_api_cache
+
+
+_hid_structs_cache = None
+
+
+def _hid_structs():
+    """Structures Win32 de l'énumération HID : (interface, détail, attributs,
+    overlapped). Construites une seule fois : ctypes recrée sinon un type
+    différent à chaque appel."""
+    global _hid_structs_cache
+    if _hid_structs_cache is None:
+        import ctypes
+        from ctypes import wintypes
+
+        class GUID(ctypes.Structure):
+            _fields_ = [("Data1", ctypes.c_uint32), ("Data2", ctypes.c_uint16),
+                        ("Data3", ctypes.c_uint16), ("Data4", ctypes.c_ubyte * 8)]
+
+        class SP_DEVICE_INTERFACE_DATA(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("InterfaceClassGuid", GUID),
+                        ("Flags", wintypes.DWORD), ("Reserved", ctypes.c_void_p)]
+
+        # La vraie structure finit par un tableau de taille variable ; un
+        # tampon généreux évite le double appel qui sert à mesurer le chemin.
+        class SP_DEVICE_INTERFACE_DETAIL_DATA_W(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD),
+                        ("DevicePath", ctypes.c_wchar * 512)]
+
+        class HIDD_ATTRIBUTES(ctypes.Structure):
+            _fields_ = [("Size", wintypes.ULONG), ("VendorID", wintypes.USHORT),
+                        ("ProductID", wintypes.USHORT),
+                        ("VersionNumber", wintypes.USHORT)]
+
+        class OVERLAPPED(ctypes.Structure):
+            _fields_ = [("Internal", ctypes.c_void_p),
+                        ("InternalHigh", ctypes.c_void_p),
+                        ("Offset", wintypes.DWORD), ("OffsetHigh", wintypes.DWORD),
+                        ("hEvent", ctypes.c_void_p)]
+
+        _hid_structs_cache = (GUID, SP_DEVICE_INTERFACE_DATA,
+                              SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+                              HIDD_ATTRIBUTES, OVERLAPPED)
+    return _hid_structs_cache
+
+
+def _hid_device_paths():
+    """Chemins de tous les périphériques HID présents."""
+    import ctypes
+
+    setup, _hid, _k32 = _hid_api()
+    guid_type, iface_type, detail_type, _attrs, _ov = _hid_structs()
+
+    # GUID_DEVINTERFACE_HID : {4D1E55B2-F16F-11CF-88CB-001111000030}
+    guid = guid_type(0x4D1E55B2, 0xF16F, 0x11CF,
+                     (ctypes.c_ubyte * 8)(0x88, 0xCB, 0x00, 0x11,
+                                          0x11, 0x00, 0x00, 0x30))
+    DIGCF_PRESENT, DIGCF_DEVICEINTERFACE = 0x02, 0x10
+    INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+    dev_info = setup.SetupDiGetClassDevsW(ctypes.byref(guid), None, None,
+                                          DIGCF_PRESENT | DIGCF_DEVICEINTERFACE)
+    if not dev_info or dev_info == INVALID_HANDLE_VALUE:
+        return []
+
+    paths = []
+    try:
+        iface = iface_type()
+        iface.cbSize = ctypes.sizeof(iface_type)
+        index = 0
+        while setup.SetupDiEnumDeviceInterfaces(dev_info, None, ctypes.byref(guid),
+                                                index, ctypes.byref(iface)):
+            index += 1
+            detail = detail_type()
+            # cbSize décrit la structure OFFICIELLE (un DWORD puis un WCHAR,
+            # alignés), pas notre tampon : 8 octets en 64-bit, 6 en 32-bit.
+            detail.cbSize = 8 if ctypes.sizeof(ctypes.c_void_p) == 8 else 6
+            if setup.SetupDiGetDeviceInterfaceDetailW(
+                    dev_info, ctypes.byref(iface), ctypes.byref(detail),
+                    ctypes.sizeof(detail), None, None):
+                paths.append(detail.DevicePath)
+        return paths
+    finally:
+        setup.SetupDiDestroyDeviceInfoList(dev_info)
+
+
+def _hid_read(handle, size, timeout_ms=80):
+    """Un rapport d'entrée, ou None. Lecture asynchrone, donc non bloquante.
+
+    Une manette au repos peut n'envoyer aucun rapport : une lecture synchrone
+    figerait le thread de mesure jusqu'au prochain geste du joueur. On lit donc
+    en mode « overlapped », avec un délai court, et on annule au-delà.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    _setup, _hid, k32 = _hid_api()
+    overlapped_type = _hid_structs()[4]
+    ERROR_IO_PENDING, WAIT_OBJECT_0 = 997, 0
+
+    buf = (ctypes.c_ubyte * size)()
+    read = wintypes.DWORD(0)
+    event = k32.CreateEventW(None, True, False, None)
+    if not event:
+        return None
+    ov = overlapped_type()
+    ov.hEvent = event
+    try:
+        if k32.ReadFile(handle, buf, size, ctypes.byref(read), ctypes.byref(ov)):
+            return bytes(buf[:read.value])
+        if ctypes.GetLastError() != ERROR_IO_PENDING:
+            return None
+        if k32.WaitForSingleObject(event, timeout_ms) != WAIT_OBJECT_0:
+            # On attend la fin réelle de l'annulation : sans cela, le noyau
+            # pourrait encore écrire dans un tampon déjà libéré par Python.
+            k32.CancelIo(handle)
+            k32.GetOverlappedResult(handle, ctypes.byref(ov), ctypes.byref(read), True)
+            return None
+        if not k32.GetOverlappedResult(handle, ctypes.byref(ov),
+                                       ctypes.byref(read), False):
+            return None
+        return bytes(buf[:read.value])
+    finally:
+        k32.CloseHandle(event)
+
+
+def _sony_battery(family, bus, report):
+    """Batterie d'une manette Sony : (pourcentage, état) ou (None, None).
+
+    Décodage repris des pilotes Linux : le matériel ne publie qu'un niveau par
+    dizaine, dont on prend le milieu (0 = 0-9 %, 1 = 10-19 %…).
+    """
+    index = SONY_STATUS_BYTE.get((family, bus))
+    if index is None or report is None or len(report) <= index:
+        return None, None
+    status_byte = report[index]
+    level = status_byte & 0x0F
+
+    if family == "dualsense":
+        # Quartet haut : 0 décharge, 1 en charge, 2 pleine ; le reste signale
+        # un défaut (température ou tension) et on ne sait alors rien de sûr.
+        charge = (status_byte & 0xF0) >> 4
+        if charge == 0x02:
+            return 100, "full"
+        if charge not in (0x00, 0x01):
+            return None, None
+        return min(level * 10 + 5, 100), "charging" if charge == 0x01 else "discharging"
+
+    # DualShock 4 : le bit 4 dit si le câble est branché, et le niveau monte
+    # alors jusqu'à 11 (pleine) — 14 et 15 signalent un défaut de charge.
+    cable = bool(status_byte & 0x10)
+    if not cable:
+        return min(level * 10 + 5, 100), "discharging"
+    if level >= 11:
+        return (100, "full") if level == 11 else (None, None)
+    return min(level * 10 + 5, 100), "charging"
+
+
+def _hid_sony_controllers():
+    """Manettes Sony vues en HID brut : nom, bus, batterie."""
+    import ctypes
+
+    _setup, hid, k32 = _hid_api()
+    attrs_type = _hid_structs()[3]
+
+    GENERIC_READ, GENERIC_WRITE = 0x80000000, 0x40000000
+    FILE_SHARE_READ, FILE_SHARE_WRITE = 0x01, 0x02
+    OPEN_EXISTING, FILE_FLAG_OVERLAPPED = 3, 0x40000000
+    INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+    found, seen = [], set()
+    for path in _hid_device_paths():
+        handle = k32.CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
+                                 FILE_SHARE_READ | FILE_SHARE_WRITE, None,
+                                 OPEN_EXISTING, FILE_FLAG_OVERLAPPED, None)
+        if not handle or handle == INVALID_HANDLE_VALUE:
+            # Périphérique ouvert en exclusif par un autre logiciel, ou dont
+            # l'accès demande des droits : il y en a beaucoup, on passe.
+            continue
+        try:
+            attrs = attrs_type()
+            attrs.Size = ctypes.sizeof(attrs_type)
+            if not hid.HidD_GetAttributes(handle, ctypes.byref(attrs)):
+                continue
+            if attrs.VendorID != SONY_VID or attrs.ProductID not in SONY_PADS:
+                continue
+            # La DualSense expose plusieurs interfaces HID (pavé tactile,
+            # capteurs) : une seule par modèle suffit, comme on dédoublonne
+            # par périphérique HID sous Linux.
+            if attrs.ProductID in seen:
+                continue
+            seen.add(attrs.ProductID)
+
+            label, family = SONY_PADS[attrs.ProductID]
+            name_buf = ctypes.create_unicode_buffer(128)
+            if hid.HidD_GetProductString(handle, name_buf, ctypes.sizeof(name_buf)):
+                product = _clean_controller_name((name_buf.value or "").strip())
+                if product:
+                    label = product
+
+            # Le format du rapport trahit la connexion : la manette passe
+            # d'elle-même en rapport 0x31 / 0x11 dès qu'elle est en Bluetooth.
+            report = _hid_read(handle, 78)
+            bus = SONY_REPORT_BUS.get(report[0]) if report else None
+            if bus == "usb" and len(report) < 64:
+                # Rapport 0x01 court : DualSense en Bluetooth « mode minimal »,
+                # tant qu'aucun logiciel ne lui a demandé le rapport complet.
+                # Il ne contient pas la batterie.
+                bus, report = "bluetooth", None
+            battery, status = _sony_battery(family, bus, report)
+            found.append({"name": label, "bus": bus,
+                          "battery": battery, "status": status})
+        finally:
+            k32.CloseHandle(handle)
+    return found
+
+
+def _xinput_controllers():
+    """Manettes vues par XInput : batterie en quatre niveaux, sans modèle."""
+    import ctypes
+    from ctypes import wintypes
+
+    class XINPUT_STATE(ctypes.Structure):
+        _fields_ = [("dwPacketNumber", wintypes.DWORD),
+                    ("wButtons", wintypes.WORD),
+                    ("bLeftTrigger", ctypes.c_ubyte),
+                    ("bRightTrigger", ctypes.c_ubyte),
+                    ("sThumbLX", ctypes.c_short), ("sThumbLY", ctypes.c_short),
+                    ("sThumbRX", ctypes.c_short), ("sThumbRY", ctypes.c_short)]
+
+    class XINPUT_BATTERY_INFORMATION(ctypes.Structure):
+        _fields_ = [("BatteryType", ctypes.c_ubyte),
+                    ("BatteryLevel", ctypes.c_ubyte)]
+
+    dll = None
+    for name in XINPUT_DLLS:
+        try:
+            dll = ctypes.windll.LoadLibrary(name)
+            break
+        except OSError:
+            continue
+    if dll is None:
+        return []
+
+    get_battery = getattr(dll, "XInputGetBatteryInformation", None)
+
+    found = []
+    for user in range(XUSER_MAX_COUNT):
+        state = XINPUT_STATE()
+        if dll.XInputGetState(user, ctypes.byref(state)) != 0:   # ERROR_SUCCESS
+            continue
+
+        battery, status, bus = None, None, None
+        if get_battery is not None:
+            info = XINPUT_BATTERY_INFORMATION()
+            # 0 = BATTERY_DEVTYPE_GAMEPAD (1 serait le casque branché dessus).
+            if get_battery(user, 0, ctypes.byref(info)) == 0:
+                if info.BatteryType == XINPUT_BAT_WIRED:
+                    bus = "usb"
+                elif info.BatteryType != XINPUT_BAT_DISCONNECTED:
+                    # Sans fil : XInput ne dit pas si c'est le dongle USB ou le
+                    # Bluetooth, et se tromper afficherait une fausse info.
+                    battery = XINPUT_BATTERY.get(info.BatteryLevel)
+                    status = "discharging" if battery is not None else None
+        found.append({"name": "Xbox Controller", "bus": bus,
+                      "battery": battery, "status": status})
+    return found
+
+
+def _read_controllers_windows():
+    """Manettes sous Windows. Les manettes Sony d'abord : on connaît leur
+    modèle et leur batterie au pourcentage près, là où XInput reste vague.
+    """
+    pads = []
+    for source in (_hid_sony_controllers, _xinput_controllers):
+        try:
+            pads += source()
+        except Exception:
+            # Une source indisponible (DLL absente, accès refusé par un autre
+            # logiciel) ne doit pas priver l'utilisateur de l'autre.
+            continue
+    return pads
+
+
 def read_controllers():
     """Liste des manettes connectées : nom, connexion, batterie.
 
@@ -1253,7 +1653,7 @@ def read_controllers():
     on dédoublonne par périphérique HID, qui est unique par manette.
     """
     if IS_WINDOWS:
-        return []
+        return _read_controllers_windows()
     found, seen = [], set()
     for js in sorted(glob.glob("/sys/class/input/js*")):
         input_dev = os.path.realpath(os.path.join(js, "device"))
