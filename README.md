@@ -280,14 +280,26 @@ reste (interface, thèmes, langues, calcul des statistiques) est strictement com
 > Sous Windows, rien à configurer : il suffit que **RivaTuner (RTSS)** tourne, ce qui
 > est le cas dès qu'on lance MSI Afterburner.
 
-Le FPS provient des logs MangoHud. Le plus simple : logging automatique.
-Ajoute à `~/.config/MangoHud/MangoHud.conf` :
+Le FPS provient des **logs CSV** de MangoHud, pas de l'overlay à l'écran : avoir le HUD
+MangoHud qui s'affiche dans le jeu **ne suffit pas**, il faut aussi que MangoHud
+*enregistre* un log (ce qu'il ne fait pas par défaut).
+
+**Le plus simple** : si CachyMonitor ne voit aucun log, il affiche un message et un bouton
+**« Activer le logging MangoHud »**. Un clic (après confirmation) ajoute les bonnes lignes
+dans ta config, avec une sauvegarde (`MangoHud.conf.cachymonitor.bak`). Relance ensuite le jeu.
+
+**À la main** : ajoute à `~/.config/MangoHud/MangoHud.conf` :
 
 ```ini
 output_folder=~/.local/share/MangoHud/logs
 autostart_log=1
 log_interval=100
+log_duration=86400
 ```
+
+> `log_duration` : sans lui, l'enregistrement s'arrête après 30 s et les FPS disparaissent.
+> Tu peux aussi lancer l'enregistrement à la volée avec la touche `toggle_logging`
+> (Maj gauche + F2 par défaut avec Goverlay).
 
 Puis lance un jeu avec MangoHud :
 

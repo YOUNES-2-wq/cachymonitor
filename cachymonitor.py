@@ -54,6 +54,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout,
     QCheckBox, QSpinBox, QSizePolicy, QComboBox, QToolButton, QListView,
+    QPushButton, QMessageBox,
 )
 
 APP_VERSION = "1.4.1"
@@ -150,6 +151,22 @@ TRANSLATIONS = {
             "Aucun jeu détecté — lance un jeu avec MangoHud",
         "No game detected — launch a game with RivaTuner (RTSS) running":
             "Aucun jeu détecté — lance un jeu avec RivaTuner (RTSS) actif",
+        "No log from MangoHud — logging is off. Enable it below, "
+        "or press Shift+F2 in game":
+            "Aucun log MangoHud — l'enregistrement est désactivé. Active-le "
+            "ci-dessous, ou appuie sur Maj+F2 en jeu",
+        "Enable MangoHud logging": "Activer le logging MangoHud",
+        "Enable MangoHud logging?": "Activer le logging MangoHud ?",
+        "CachyMonitor reads FPS from MangoHud log files, which MangoHud does "
+        "not write by default.\n\nThis adds autostart_log=1 to {path} "
+        "(a backup is made first). Restart your game afterwards.":
+            "CachyMonitor lit les FPS dans les logs de MangoHud, que MangoHud "
+            "n'écrit pas par défaut.\n\nCela ajoute autostart_log=1 dans {path} "
+            "(une sauvegarde est faite avant). Relance ensuite ton jeu.",
+        "Logging enabled": "Logging activé",
+        "Done. Restart your game for MangoHud to pick it up.":
+            "C'est fait. Relance ton jeu pour que MangoHud en tienne compte.",
+        "Could not edit the MangoHud config": "Impossible de modifier la config MangoHud",
         "Session running": "Session en cours",
         "Last session (ended)": "Dernière session (terminée)",
         "{state} · {mins:.1f} min played · lows over the last {win:.0f} s "
@@ -197,10 +214,86 @@ def asset_dir():
     return bundled if bundled else os.path.dirname(os.path.abspath(__file__))
 
 
+# ----------------------------------------------------------------------------- #
+#  Config MangoHud (Linux) : le FPS vient de ses logs, qu'il n'écrit pas par défaut
+# ----------------------------------------------------------------------------- #
+
+MANGOHUD_LOG_DIR = os.path.expanduser("~/.local/share/MangoHud/logs")
+MANGOHUD_MIN_DURATION_S = 3600   # en dessous, le log s'arrête en pleine partie
+
+
+def mangohud_conf_path():
+    return (os.environ.get("MANGOHUD_CONFIGFILE")
+            or os.path.expanduser("~/.config/MangoHud/MangoHud.conf"))
+
+
+def _conf_values(lines):
+    """Dernière valeur de chaque clé « clé=valeur » (MangoHud garde la dernière)."""
+    values = {}
+    for line in lines:
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, val = line.partition("=")
+            values[key.strip()] = val.strip()
+    return values
+
+
+def mangohud_logging_enabled():
+    """True si la config MangoHud démarre l'enregistrement toute seule."""
+    try:
+        with open(mangohud_conf_path(), encoding="utf-8") as f:
+            val = _conf_values(f.read().splitlines()).get("autostart_log", "0")
+        return val.isdigit() and int(val) > 0
+    except OSError:
+        return False
+
+
+def enable_mangohud_logging():
+    """Active le logging automatique dans la config MangoHud.
+
+    Sauvegarde l'ancien fichier (.cachymonitor.bak), ne touche qu'aux clés
+    nécessaires et garde le reste tel quel. Lève OSError en cas d'échec.
+    """
+    path = mangohud_conf_path()
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        with open(path + ".cachymonitor.bak", "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except FileNotFoundError:
+        lines = []
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    current = _conf_values(lines)
+    wanted = {"autostart_log": "1"}
+    duration = current.get("log_duration", "")
+    if not duration.isdigit() or int(duration) < MANGOHUD_MIN_DURATION_S:
+        wanted["log_duration"] = "86400"
+    if "log_interval" not in current:
+        wanted["log_interval"] = str(LOG_INTERVAL_MS)
+    if "output_folder" not in current:
+        wanted["output_folder"] = MANGOHUD_LOG_DIR
+        os.makedirs(MANGOHUD_LOG_DIR, exist_ok=True)
+
+    out = []
+    for line in lines:
+        key = line.split("=", 1)[0].strip()
+        if "=" in line and not line.lstrip().startswith("#") and key in wanted:
+            continue          # remplacée plus bas, une seule fois
+        out.append(line)
+    out += [f"{k}={v}" for k, v in wanted.items()]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
+    return path
+
+
 def no_game_text():
     """Message « aucun jeu » adapté à l'outil de mesure de la plateforme."""
     if IS_WINDOWS:
         return tr("No game detected — launch a game with RivaTuner (RTSS) running")
+    if not mangohud_logging_enabled():
+        return tr("No log from MangoHud — logging is off. Enable it below, "
+                  "or press Shift+F2 in game")
     return tr("No game detected — launch a game with MangoHud")
 
 
@@ -2647,7 +2740,16 @@ class GamePanel(QFrame):
         self.status.setObjectName("cardSub")
         self.status.setAlignment(Qt.AlignCenter)
         self.idle = True     # aucun jeu détecté : le statut est un texte fixe
+        self.status.setWordWrap(True)
         lay.addWidget(self.status)
+
+        # Linux : propose d'activer le logging MangoHud quand il est coupé
+        self.enable_btn = QPushButton(tr("Enable MangoHud logging"))
+        self.enable_btn.setObjectName("optButton")
+        self.enable_btn.setCursor(Qt.PointingHandCursor)
+        self.enable_btn.clicked.connect(self._enable_logging)
+        lay.addWidget(self.enable_btn, 0, Qt.AlignCenter)
+        self._refresh_idle()
 
         self.retheme()
 
@@ -2661,8 +2763,35 @@ class GamePanel(QFrame):
             (self.s_avg, "AVERAGE ({win:.0f} s)"),
         ):
             box.cap.setText(tr(key).format(win=GAME_WINDOW_S))
+        self.enable_btn.setText(tr("Enable MangoHud logging"))
         if self.idle:
-            self.status.setText(no_game_text())
+            self._refresh_idle()
+
+    def _refresh_idle(self):
+        """Texte « aucun jeu » + bouton d'aide (seulement si le logging est coupé)."""
+        self.status.setText(no_game_text())
+        self.enable_btn.setVisible(
+            self.idle and not IS_WINDOWS and not mangohud_logging_enabled())
+
+    def _enable_logging(self):
+        path = mangohud_conf_path()
+        ask = QMessageBox.question(
+            self, tr("Enable MangoHud logging?"),
+            tr("CachyMonitor reads FPS from MangoHud log files, which MangoHud "
+               "does not write by default.\n\nThis adds autostart_log=1 to {path} "
+               "(a backup is made first). Restart your game afterwards."
+               ).format(path=path))
+        if ask != QMessageBox.Yes:
+            return
+        try:
+            enable_mangohud_logging()
+        except OSError as e:
+            QMessageBox.warning(self, tr("Could not edit the MangoHud config"), str(e))
+            return
+        QMessageBox.information(
+            self, tr("Logging enabled"),
+            tr("Done. Restart your game for MangoHud to pick it up."))
+        self._refresh_idle()
 
     def retheme(self):
         self.dot.setStyleSheet(f"color:{col('fps')}; font-size:12px;")
@@ -2693,10 +2822,11 @@ class GamePanel(QFrame):
         self.bottle.setText("")
         self.ft_graph.set_data([])
         self.idle = True
-        self.status.setText(no_game_text())
+        self._refresh_idle()
 
     def update_game(self, g, target):
         self.idle = False
+        self.enable_btn.hide()
         self.game.setText(g["name"])
 
         if g["live"] and g["fps"] is not None:
