@@ -42,6 +42,7 @@ import os
 import re
 import sys
 import glob
+import shutil
 import time
 import subprocess
 from collections import deque
@@ -57,7 +58,7 @@ from PySide6.QtWidgets import (
     QPushButton, QMessageBox,
 )
 
-APP_VERSION = "1.4.1"
+APP_VERSION = "1.4.2"
 
 IS_WINDOWS = sys.platform.startswith("win")
 
@@ -1131,15 +1132,93 @@ def _nvidia_smi():
     if _nvidia_smi_path is None:
         _nvidia_smi_path = "nvidia-smi"
         if IS_WINDOWS:
-            import shutil
             fallback = r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"
             if not shutil.which("nvidia-smi") and os.path.exists(fallback):
                 _nvidia_smi_path = fallback
     return _nvidia_smi_path
 
 
+_smi_missing = None
+
+
+def _nvidia_smi_missing():
+    """Vrai si nvidia-smi est introuvable (Linux). Résolu une seule fois, comme le chemin."""
+    global _smi_missing
+    if _smi_missing is None:
+        _smi_missing = shutil.which("nvidia-smi") is None
+    return _smi_missing
+
+
+_nvml_lib = None   # None = pas encore essayé, False = indisponible
+_nvml_handle = None
+
+
+def _nvml_open():
+    """Charge NVML (libnvidia-ml) une seule fois, Linux uniquement.
+
+    Sert quand nvidia-smi est absent, typiquement dans un bac à sable Flatpak :
+    l'extension NVIDIA fournit la bibliothèque mais pas le programme.
+    """
+    global _nvml_lib, _nvml_handle
+    if _nvml_lib is not None:
+        return _nvml_lib or None
+    _nvml_lib = False
+    if IS_WINDOWS:
+        return None
+    import ctypes
+    try:
+        lib = ctypes.CDLL("libnvidia-ml.so.1")
+        if lib.nvmlInit_v2() != 0:
+            return None
+        handle = ctypes.c_void_p()
+        if lib.nvmlDeviceGetHandleByIndex_v2(0, ctypes.byref(handle)) != 0:
+            return None
+    except (OSError, AttributeError):
+        return None
+    _nvml_lib, _nvml_handle = lib, handle
+    return lib
+
+
+def _gpu_nvidia_nvml():
+    """GPU NVIDIA via NVML, mêmes champs que _gpu_nvidia()."""
+    lib = _nvml_open()
+    if lib is None:
+        return None
+    import ctypes
+
+    class Util(ctypes.Structure):
+        _fields_ = [("gpu", ctypes.c_uint), ("memory", ctypes.c_uint)]
+
+    class Mem(ctypes.Structure):
+        _fields_ = [("total", ctypes.c_ulonglong), ("free", ctypes.c_ulonglong),
+                    ("used", ctypes.c_ulonglong)]
+
+    h = _nvml_handle
+    name = ctypes.create_string_buffer(96)
+    util, mem = Util(), Mem()
+    temp, clock, power = ctypes.c_uint(), ctypes.c_uint(), ctypes.c_uint()
+    if lib.nvmlDeviceGetName(h, name, 96) != 0:
+        return None
+    ok_util = lib.nvmlDeviceGetUtilizationRates(h, ctypes.byref(util)) == 0
+    ok_mem = lib.nvmlDeviceGetMemoryInfo(h, ctypes.byref(mem)) == 0
+    ok_temp = lib.nvmlDeviceGetTemperature(h, 0, ctypes.byref(temp)) == 0  # 0 = cœur GPU
+    ok_clock = lib.nvmlDeviceGetClockInfo(h, 0, ctypes.byref(clock)) == 0  # 0 = graphique
+    ok_power = lib.nvmlDeviceGetPowerUsage(h, ctypes.byref(power)) == 0    # milliwatts
+    return {
+        "gpu_name": name.value.decode(errors="replace"),
+        "gpu_pct": float(util.gpu) if ok_util else 0.0,
+        "gpu_temp": float(temp.value) if ok_temp else None,
+        "vram_used": mem.used / 1048576 if ok_mem else 0.0,   # MiB
+        "vram_total": mem.total / 1048576 if ok_mem else 0.0,
+        "gpu_clock": float(clock.value) if ok_clock else None,
+        "gpu_power": power.value / 1000 if ok_power else None,
+    }
+
+
 def _gpu_nvidia():
-    """GPU NVIDIA via nvidia-smi (usage, temp, VRAM, clock, power)."""
+    """GPU NVIDIA via nvidia-smi (usage, temp, VRAM, clock, power), sinon NVML."""
+    if not IS_WINDOWS and _nvidia_smi_missing():
+        return _gpu_nvidia_nvml()
     query = "name,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.gr,power.draw"
     try:
         out = subprocess.run(
