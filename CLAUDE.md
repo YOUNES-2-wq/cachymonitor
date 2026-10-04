@@ -11,7 +11,7 @@ Younes (GitHub `YOUNES-2-wq`, AUR `younes-2`) : gamer, **pas développeur**. Tou
 
 ## Distribution
 - **AUR** `cachymonitor` (dépôt séparé `ssh://aur@aur.archlinux.org/cachymonitor.git`,
-  PKGBUILD qui télécharge l'archive du tag GitHub) — en **1.4.2**.
+  PKGBUILD qui télécharge l'archive du tag GitHub) — en **1.4.3**.
 - **winget** `YOUNES-2-wq.CachyMonitor` — en **1.4.1** (manifestes dans
   `packaging/winget/manifests`, procédure dans `packaging/winget/README.md`).
 - **Installateur Windows** : `packaging/windows/build.ps1` (PyInstaller en `--onedir`,
