@@ -58,7 +58,7 @@ from PySide6.QtWidgets import (
     QPushButton, QMessageBox,
 )
 
-APP_VERSION = "1.4.2"
+APP_VERSION = "1.4.3"
 
 IS_WINDOWS = sys.platform.startswith("win")
 
