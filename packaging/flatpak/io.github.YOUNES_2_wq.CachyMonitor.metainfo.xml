@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This file was written with the help of an AI assistant (Claude); see the Flathub submission for the disclosure. -->
+<component type="desktop-application">
+  <id>io.github.YOUNES_2_wq.CachyMonitor</id>
+
+  <name>CachyMonitor</name>
+  <summary>Gaming system monitor</summary>
+
+  <developer id="io.github.YOUNES_2_wq">
+    <name>YOUNES-2-wq</name>
+  </developer>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      A lightweight gaming system monitor, made to sit on a second screen while you play.
+      It shows CPU, GPU, RAM and VRAM usage, temperatures and FPS with real-time graphs,
+      session statistics and your controller's battery level.
+    </p>
+    <ul>
+      <li>CPU, GPU, RAM and VRAM gauges with temperatures and trend graphs</li>
+      <li>FPS, 1% low, 0.1% low and frametime, with a CPU/GPU bottleneck indicator</li>
+      <li>Controller card: model, wired or Bluetooth connection and battery level</li>
+      <li>Light and dark themes, English and French interface</li>
+    </ul>
+    <p>
+      FPS data comes from the log files written by MangoHud, so MangoHud must be installed
+      and its logging enabled. This is an independent community project and is not
+      affiliated with the CachyOS team.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">io.github.YOUNES_2_wq.CachyMonitor.desktop</launchable>
+
+  <url type="homepage">https://github.com/YOUNES-2-wq/cachymonitor</url>
+  <url type="bugtracker">https://github.com/YOUNES-2-wq/cachymonitor/issues</url>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/YOUNES-2-wq/cachymonitor/main/docs/screenshot.png</image>
+      <caption>Dark theme: gauges, temperatures, trend graphs and session statistics</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/YOUNES-2-wq/cachymonitor/main/docs/screenshot-clair.png</image>
+      <caption>Light theme with the Options panel open</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/YOUNES-2-wq/cachymonitor/main/docs/double-ecran.jpg</image>
+      <caption>CachyMonitor on a second screen during a game</caption>
+    </screenshot>
+  </screenshots>
+
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="1.4.2" date="2026-10-03"/>
+    <release version="1.4.1" date="2026-10-02"/>
+    <release version="1.4.0" date="2026-10-02"/>
+  </releases>
+</component>
