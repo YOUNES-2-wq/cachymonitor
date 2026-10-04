@@ -62,6 +62,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; dans le sous-dossier _internal.
 Source: "..\..\dist\{#AppName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\..\README.md";          DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\README.fr.md";       DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE";            DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

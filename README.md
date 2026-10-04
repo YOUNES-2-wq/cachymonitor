@@ -1,157 +1,142 @@
 # CachyMonitor
 
-# NOUVEAU — CachyMonitor est maintenant sur Windows 11
+**English** | [Français](README.fr.md)
 
-### Le même moniteur gaming, désormais sur Linux **et** sur Windows 11.
+A lightweight gaming system monitor for a second screen: **CPU, GPU, RAM, VRAM,
+temperatures and FPS** with real-time graphs, session statistics (1% low, 0.1% low,
+frametime, CPU/GPU bottleneck) and your **controller's battery level**. One Python file
+that runs on **Linux and Windows 11**, with a single dependency (PySide6).
 
-Disponible sur **winget**, le gestionnaire de paquets officiel de Windows. Dans un
-terminal (PowerShell ou Invite de commandes) :
+```powershell
+winget install cachymonitor          # Windows 11
+```
+
+```sh
+paru -S cachymonitor                 # Arch, CachyOS, Manjaro...
+```
+
+Or **[download the Windows installer (CachyMonitor-Setup.exe)](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**.
+Other Linux distributions: see [manual install](#manual-install-any-distribution).
+
+> Independent community project, made by a CachyOS user. **Not affiliated with the
+> official CachyOS team**; the name is just a nod to the distribution.
+
+![CachyMonitor, dark theme](docs/screenshot.png)
+
+*CPU / GPU / RAM / VRAM gauges with temperatures and trend graphs. At the bottom, the
+session statistics: FPS, 1% low, 0.1% low, frametime and CPU/GPU bottleneck.*
+
+![CachyMonitor, light theme with the Options panel open](docs/screenshot-clair.png)
+
+*Light theme with the Options panel open: refresh interval, FPS target, theme (light /
+dark / system), language and always-on-top.*
+
+![CachyMonitor on a second screen during a game](docs/double-ecran.jpg)
+
+**The perfect app for my second screen.**
+
+> **Language**: the interface follows the system language by default (`LANG`/`LC_ALL`
+> on Linux, the Windows locale otherwise): **French** if your desktop is in French,
+> **English** everywhere else. You can also switch it live in **Options > Language**
+> (System / English / Français); the choice is remembered. Adding a language means
+> adding an entry to the `TRANSLATIONS` dictionary at the top of `cachymonitor.py`.
+> Contributions are welcome.
+
+## Why CachyMonitor?
+
+I'm a gamer and I play a lot of games on CachyOS. I wanted an app that could monitor my
+hardware and tell me as much as possible about how my components behave while I play,
+but I couldn't find a system monitor designed specifically for gaming. So I decided to
+make my own.
+
+**I'm not a developer.** I built CachyMonitor with a lot of help from an AI assistant,
+Claude. I'm saying this upfront because I think you should know. The result surprised me
+so much that I wanted to share it with anyone who'd like to try it. The whole program is
+a single readable Python file, so anyone can check what it does.
+
+## What it does
+
+On Linux, CachyMonitor builds on **[MangoHud](https://github.com/flightlessmango/MangoHud)**,
+the reference tool for recording in-game performance. But where MangoHud shows an
+**overlay on top of the game**, CachyMonitor **turns its logs into real session
+statistics** in a separate window. On Windows, the same statistics come from
+**RivaTuner (RTSS)**.
+
+It is a companion window, separate from the game, that brings together in one interface:
+
+- **computed session statistics**: 1% low, 0.1% low, average, frametime spikes
+  (micro-stutters) and a **CPU vs GPU bottleneck** indicator;
+- **live component gauges**: CPU, GPU, RAM, VRAM, clock speeds, power draw and
+  temperatures, with trend graphs;
+- **no overlay** drawn on top of the game, in a light app (one Python file, one
+  dependency);
+- your **controller**: model, wired or Bluetooth connection and battery level, so it
+  doesn't die on you mid-game, **on Linux and on Windows**;
+- a **light or dark theme**, chosen by you or following your desktop automatically.
+
+The building blocks already existed (MangoHud, GOverlay, RivaTuner...), but as far as I
+know nobody had put them together into a **companion dashboard built for gaming**. That's
+the whole idea: not reinventing the measurements, but making them **readable and easy to
+analyse**. Many thanks to the MangoHud team, without whom none of this would be possible.
+
+## Install on Windows 11
+
+### With winget (recommended)
+
+CachyMonitor is published in the official catalogue of **winget**, the package manager
+built into Windows 11. Open a terminal (PowerShell or Command Prompt) and type:
 
 ```powershell
 winget install cachymonitor
 ```
 
-Ou **[télécharger l'installateur Windows (CachyMonitor-Setup.exe)](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**.
-
-On double-clique, on installe, ça marche : ni Python ni PySide6 à installer, tout est
-dans l'exécutable. Toutes les fonctions de la version Linux sont là — statistiques de
-session (1 % low, 0.1 % low, moyenne), graphe de frametime, détection du goulot
-d'étranglement CPU/GPU, thème clair/sombre et interface en français ou en anglais.
-
-> **Deux logiciels sont nécessaires pour que tout fonctionne sous Windows :**
-> **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** et **RivaTuner (RTSS)**,
-> livré avec lui. Les deux sont gratuits. Sans eux, l'application démarre et affiche
-> l'usage CPU, la RAM et le GPU, mais **la température, la consommation et les FPS
-> restent vides**. Windows n'expose pas ces capteurs comme le fait le noyau Linux :
-> CachyMonitor lit donc ceux d'Afterburner.
-> [Détails](#prérequis--msi-afterburner-et-rivatuner)
-
-> **Version Windows testée sur une seule machine.** AMD Ryzen 5 5600 + NVIDIA RTX 3060
-> sous Windows 11 Pro 24H2, et rien d'autre. Sur une Radeon, un CPU Intel ou un GPU
-> intégré, le code existe mais **n'a jamais été exécuté**. Si vous l'essayez, dites-moi
-> ce que ça donne : [Discussions](https://github.com/YOUNES-2-wq/cachymonitor/discussions).
-> C'est le seul moyen que j'aie de savoir si ça marche ailleurs que chez moi.
-
-[Aller directement à l'installation Windows](#installation-sur-windows-11)
-
----
-
-Moniteur système léger : **CPU, GPU, RAM, VRAM, températures et FPS**, avec graphes temps réel, plus la **batterie de ta manette**. Un seul fichier Python qui tourne sur **Linux et Windows 11**, une seule dépendance (PySide6).
-
-> ℹ️ Projet communautaire indépendant, créé par un utilisateur de CachyOS. **Non affilié à l'équipe officielle de CachyOS** — le nom traduit simplement l'affection pour la distribution.
-
-![CachyMonitor en thème sombre](docs/screenshot.png)
-
-*Jauges CPU / GPU / RAM / VRAM avec températures et courbes de tendance, et en bas les statistiques de session : FPS, 1 % low, 0.1 % low, frametime et goulot d'étranglement CPU/GPU.*
-
-![CachyMonitor en thème clair, panneau Options ouvert](docs/screenshot-clair.png)
-
-*Thème clair, panneau Options ouvert : intervalle de rafraîchissement, cible FPS, thème (clair / sombre / système), langue et affichage au-dessus des autres fenêtres.*
-
-![CachyMonitor sur un second écran pendant une partie](docs/double-ecran.jpg)
-
-**L'application parfaite pour mon deuxième écran.**
-
-> 🌍 **Langue** — l'interface suit par défaut la langue du système (`LANG`/`LC_ALL` sous
-> Linux, la locale Windows sinon) :
-> **français** si le bureau l'est, **anglais** partout ailleurs. Elle se change aussi
-> à la main, à chaud, dans le panneau **⚙ Options → Langue** (Système / English /
-> Français) ; le choix est mémorisé. Ajouter une langue = ajouter une entrée au
-> dictionnaire `TRANSLATIONS` en haut de `cachymonitor.py`, les contributions sont
-> bienvenues.
-
-## Pourquoi CachyMonitor ?
-
-Je suis un gamer et j'aime jouer à plusieurs jeux sur CachyOS. Je cherchais une application capable de monitorer mon matériel et de me donner un maximum d'informations sur le comportement de mes composants pendant le jeu — mais je n'ai trouvé aucun moniteur système pensé spécialement pour les jeux. J'ai donc décidé de créer le mien.
-
-Comme je n'ai aucune formation de développeur, j'ai sollicité l'aide de mon ami IA, Claude, qui m'a énormément aidé. Le résultat a été tellement bluffant que j'ai eu envie de partager cette application avec toute personne qui souhaite l'essayer.
-
-## Une première du genre 🚀
-
-CachyMonitor s'appuie sur **[MangoHud](https://github.com/flightlessmango/MangoHud)**,
-l'outil de référence qui enregistre les performances en jeu sous Linux. Mais là où
-MangoHud affiche un **overlay par-dessus le jeu**, CachyMonitor va plus loin : il
-**transforme ces logs en véritables statistiques de session**, dans une fenêtre à part.
-
-À ma connaissance, c'est **la première application de ce genre** — une fenêtre
-compagnon, distincte du jeu, qui réunit dans une seule interface visuelle :
-
-- les **statistiques de session calculées** — 1 % low, 0,1 % low, moyenne, pics de
-  frametime (micro-saccades) et **goulot d'étranglement CPU vs GPU** ;
-- les **jauges de composants en direct** — CPU, GPU, RAM, VRAM, fréquences,
-  consommation et températures, avec courbes de tendance ;
-- le tout **sans overlay** qui s'affiche par-dessus le jeu, dans une appli légère
-  (un seul fichier Python, une seule dépendance) ;
-- la **manette** : modèle, connexion câble ou Bluetooth et niveau de batterie,
-  pour ne plus se faire surprendre en pleine partie, **sur Linux comme sur
-  Windows** ;
-- en **thème clair ou sombre**, au choix ou en suivant automatiquement le bureau.
-
-Les briques existaient déjà (MangoHud, Goverlay…), mais personne ne les avait
-assemblées en un **tableau de bord compagnon pensé pour le jeu**. C'est toute
-l'idée de CachyMonitor : ne pas réinventer la mesure, mais la rendre **lisible et
-analysable**. 🙏 Merci à l'équipe de MangoHud, sans qui rien de tout ça ne serait possible.
-
-## Installation sur Windows 11
-
-### Avec winget (recommandé)
-
-CachyMonitor est publié dans le catalogue officiel de **winget**, le gestionnaire de
-paquets intégré à Windows 11. Ouvrir un terminal (PowerShell ou Invite de commandes)
-et taper :
-
-```powershell
-winget install cachymonitor
-```
-
-Les mises à jour s'installent ensuite avec :
+To update later:
 
 ```powershell
 winget upgrade cachymonitor
 ```
 
-### Avec l'installateur
+### With the installer
 
-**[Télécharger CachyMonitor-Setup.exe](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**,
-puis double-cliquer. L'assistant propose d'installer pour tous les utilisateurs ou pour
-vous seul, crée les raccourcis (bureau + menu Démarrer) et s'enlève proprement depuis
-*Paramètres → Applications*. **Python n'est pas nécessaire** : tout est dans l'exécutable.
+**[Download CachyMonitor-Setup.exe](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**
+and double-click it. The setup wizard lets you install for all users or just for you,
+creates shortcuts (desktop and Start menu) and uninstalls cleanly from
+*Settings > Apps*. **Python is not needed**: everything is bundled.
 
-> **Windows peut afficher un avertissement bleu « Windows a protégé votre ordinateur ».**
-> C'est normal et ce n'est pas un virus : l'installateur n'est pas signé numériquement,
-> car un certificat coûte plusieurs centaines d'euros par an pour un projet gratuit.
-> Cliquez sur **Informations complémentaires** puis **Exécuter quand même**.
-> Cet avertissement dépend de la réputation du fichier chez Microsoft : il apparaît
-> surtout sur les téléchargements récents et se raréfie avec le temps. Le code source
-> est entièrement lisible ici, et vous pouvez reconstruire l'installateur vous-même
-> (voir plus bas).
+> **Windows may show a blue "Windows protected your PC" warning.** This is expected and
+> it is not a virus: the installer isn't digitally signed, because a code-signing
+> certificate costs several hundred euros a year, which is a lot for a free project.
+> Click **More info**, then **Run anyway**. This warning depends on the file's
+> reputation with Microsoft: it mostly shows up on recent downloads and fades over
+> time. The source code is fully readable here, and you can rebuild the installer
+> yourself (see below).
 
-### Prérequis : MSI Afterburner et RivaTuner
+### Requirements: MSI Afterburner and RivaTuner
 
-**À lire avant de s'étonner que des valeurs soient vides.** Sous Windows, CachyMonitor
-ne mesure pas le matériel lui-même : le système n'expose pas les capteurs comme le fait
-le noyau Linux, où tout se lit dans `/sys`. L'application s'appuie donc sur
-**MSI Afterburner**, que la plupart des joueurs font déjà tourner.
+**Read this before wondering why some values are empty.** On Windows, CachyMonitor
+doesn't measure the hardware itself: Windows doesn't expose sensors the way the Linux
+kernel does (where everything can be read from `/sys`). So the app relies on
+**MSI Afterburner**, which most PC gamers already run.
 
-| Pour obtenir | Il faut |
+| To get | You need |
 |---|---|
-| Température, consommation et fréquence réelle du CPU | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (gratuit) |
-| FPS et statistiques de session (1 % low, 0.1 % low…) | **RivaTuner (RTSS)**, installé automatiquement avec Afterburner |
-| Usage CPU, RAM, nom du processeur | rien, ça marche partout |
-| GPU, VRAM, température GPU | rien sur NVIDIA (`nvidia-smi`) ; Afterburner sinon |
+| CPU temperature, power draw and real clock speed | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (free) |
+| FPS and session statistics (1% low, 0.1% low...) | **RivaTuner (RTSS)**, installed automatically with Afterburner |
+| CPU usage, RAM, processor name | nothing, works everywhere |
+| GPU, VRAM, GPU temperature | nothing on NVIDIA (`nvidia-smi`); Afterburner otherwise |
 
-**Ce qu'il faut faire :** installer Afterburner, le laisser tourner (il démarre RTSS
-tout seul), et c'est fini. Aucun réglage à faire dans CachyMonitor.
+**What to do:** install Afterburner and leave it running (it starts RTSS by itself).
+That's it. There's nothing to configure in CachyMonitor.
 
-**Sans Afterburner**, l'application démarre et reste utilisable : usage CPU, RAM, GPU et
-VRAM s'affichent normalement. En revanche la température, la consommation et les FPS
-restent à `—`. Un repli existe pour la seule température, via
+**Without Afterburner**, the app still starts and stays usable: CPU, RAM, GPU and VRAM
+usage are shown normally. However, temperature, power draw and FPS stay at `—`. There
+is a fallback for the temperature only, through
 [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
 
-> Les chiffres viennent **de la même source que l'OSD de RivaTuner** : le FPS affiché par
-> CachyMonitor est exactement celui que vous voyez en jeu, sans écart de calcul.
+> The numbers come **from the same source as the RivaTuner on-screen display**: the FPS
+> shown by CachyMonitor is exactly the one you see in game.
 
-### Reconstruire l'installateur soi-même
+### Rebuild the installer yourself
 
 ```powershell
 python -m pip install pyinstaller pyside6 psutil
@@ -159,57 +144,55 @@ winget install JRSoftware.InnoSetup
 powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1
 ```
 
-Le résultat apparaît dans `dist\`.
+The result appears in `dist\`.
 
-### Lancer sans installer (depuis les sources)
+### Run without installing (from source)
 
 ```powershell
 python -m pip install pyside6 psutil
 python cachymonitor.py
 ```
 
-## Installation sur Linux
+## Install on Linux
 
-> **CachyMonitor fonctionne sur n'importe quelle distribution Linux** (Arch,
-> CachyOS, Fedora, Ubuntu, Debian, openSUSE, Pop!\_OS…). Il ne lit que des sources
-> standard du noyau (`/proc`, `/sys`, `hwmon`), `nvidia-smi` et les logs MangoHud :
-> rien n'est spécifique à une distribution. La seule différence entre distros, c'est
-> la manière d'installer la dépendance (**PySide6**).
+> **CachyMonitor works on any Linux distribution** (Arch, CachyOS, Fedora, Ubuntu,
+> Debian, openSUSE, Pop!\_OS...). It only reads standard kernel sources (`/proc`,
+> `/sys`, `hwmon`), `nvidia-smi` and MangoHud logs: nothing is distribution-specific.
+> The only difference between distros is how you install the dependency (**PySide6**).
 >
-> - **Distros basées sur Arch** (CachyOS, Manjaro, EndeavourOS…) → installation en une
->   commande via l'**AUR** (ci-dessous).
-> - **Toutes les autres distros** → installation manuelle depuis Git (section plus bas).
+> - **Arch-based distros** (CachyOS, Manjaro, EndeavourOS...): one-command install from
+>   the **AUR** (below).
+> - **All other distros**: manual install from Git (further down).
 >
-> **X11 comme Wayland** — aucune donnée ne transite par le serveur d'affichage, et
-> Qt6 gère les deux. Testé sur les deux backends. Seule différence à connaître :
-> l'option « au-dessus des autres fenêtres » est toujours respectée sous X11, alors
-> que beaucoup de compositeurs Wayland ignorent cette demande venant d'une
-> application — ce n'est pas un bug de CachyMonitor.
+> **X11 and Wayland**: no data goes through the display server, and Qt6 handles both.
+> Tested on both. One thing to know: the "always on top" option is always honoured on
+> X11, while many Wayland compositors ignore that request from an application. That's
+> not a CachyMonitor bug.
 
-### Depuis l'AUR (recommandé, distros Arch)
+### From the AUR (recommended on Arch-based distros)
 
 [![AUR version](https://img.shields.io/aur/version/cachymonitor?label=AUR&color=1793d1&cacheSeconds=600)](https://aur.archlinux.org/packages/cachymonitor)
 
-Sur CachyOS / Arch, avec un assistant AUR — par exemple `paru` :
+With an AUR helper, for example `paru`:
 
 ```sh
 paru -S cachymonitor
 ```
 
-ou `yay` :
+or `yay`:
 
 ```sh
 yay -S cachymonitor
 ```
 
-Puis lance **CachyMonitor** depuis ton menu d'applications, ou la commande `cachymonitor`.
+Then launch **CachyMonitor** from your application menu, or run `cachymonitor`.
 
-### Manuellement, sur n'importe quelle distribution
+### Manual install (any distribution)
 
-Fonctionne partout : il suffit de **Python 3** (déjà présent sur toute distro) et de
+Works everywhere: all you need is **Python 3** (already present on every distro) and
 **PySide6**.
 
-**1. Installe PySide6** avec le gestionnaire de paquets de ta distro :
+**1. Install PySide6** with your distro's package manager:
 
 ```sh
 # Arch / CachyOS / Manjaro
@@ -219,76 +202,75 @@ sudo pacman -S pyside6
 sudo dnf install python3-pyside6
 
 # Ubuntu / Debian / Pop!_OS / Mint
-# Debian découpe PySide6 en un paquet par module Qt : il n'existe pas de paquet
-# « python3-pyside6 » global. CachyMonitor n'a besoin que de ces trois-là.
+# Debian splits PySide6 into one package per Qt module: there is no global
+# "python3-pyside6" package. CachyMonitor only needs these three.
 sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets
 
 # openSUSE
 sudo zypper install python3-PySide6
 ```
 
-> Si PySide6 n'est pas packagé sur ta distro, tu peux toujours l'installer avec pip
-> (idéalement dans un environnement virtuel) : `pip install PySide6`.
+> If PySide6 isn't packaged on your distro, you can still install it with pip
+> (ideally in a virtual environment): `pip install PySide6`.
 
-**2. Clone le dépôt :**
+**2. Clone the repository:**
 
 ```sh
 git clone https://github.com/YOUNES-2-wq/cachymonitor.git
 ```
 
-**3. Lance l'application :**
+**3. Run the app:**
 
 ```sh
 python3 cachymonitor/cachymonitor.py
 ```
 
-**4. (Optionnel) Ajoute CachyMonitor au menu des applications**, depuis le dossier
-où tu as cloné le dépôt. Le lanceur fourni vise une installation système (AUR) :
-cette commande en fait une copie qui pointe vers ton clone.
+**4. (Optional) Add CachyMonitor to your application menu**, from the folder where you
+cloned the repository. The bundled launcher targets a system-wide (AUR) install; this
+command makes a copy that points to your clone.
 
 ```sh
 mkdir -p ~/.local/share/applications && sed -e "s|^Exec=.*|Exec=python3 $PWD/cachymonitor/cachymonitor.py|" -e "s|^Icon=.*|Icon=$PWD/cachymonitor/cachymonitor.svg|" cachymonitor/cachymonitor.desktop > ~/.local/share/applications/cachymonitor.desktop
 ```
 
-> Optionnel selon ton matériel : `mangohud` (statistiques en jeu), `nvidia-utils`
-> (GPU NVIDIA), `pciutils` (nom du GPU), `dmidecode` (type/vitesse RAM). Chacun de ces
-> paquets s'installe de la même façon selon ta distro (`dnf`, `apt`, `zypper`…).
+> Optional, depending on your hardware: `mangohud` (in-game statistics), `nvidia-utils`
+> (NVIDIA GPU), `pciutils` (GPU name), `dmidecode` (RAM type/speed). Each one installs
+> the same way on your distro (`dnf`, `apt`, `zypper`...).
 
-## Sources des données
+## Data sources
 
-Un seul fichier, deux jeux de sources : `IS_WINDOWS` aiguille chaque lecteur, tout le
-reste (interface, thèmes, langues, calcul des statistiques) est strictement commun.
+One file, two sets of sources: `IS_WINDOWS` switches each reader, and everything else
+(interface, themes, languages, statistics) is shared.
 
-| Métrique       | Linux                                 | Windows 11                                   |
-|----------------|---------------------------------------|----------------------------------------------|
-| CPU usage/cœur | `/proc/stat`                          | psutil                                       |
-| CPU fréquence  | `scaling_cur_freq`                    | MSI Afterburner *(fréquence réelle, boost)*  |
-| CPU temp       | hwmon `k10temp` / `coretemp`          | Afterburner, puis LibreHardwareMonitor       |
-| CPU conso      | —                                     | Afterburner                                  |
-| RAM            | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`              |
-| GPU / VRAM     | `nvidia-smi`, `amdgpu`, `i915`        | `nvidia-smi`, puis capteurs Afterburner      |
-| FPS / session  | logs CSV de **MangoHud**              | **RivaTuner (RTSS)**, relevé toutes les 100 ms |
-| Manettes       | `/sys/class/input` + `power_supply`   | HID brut *(Sony)*, XInput *(Xbox)*           |
+| Metric          | Linux                                 | Windows 11                                    |
+|-----------------|---------------------------------------|-----------------------------------------------|
+| CPU usage/core  | `/proc/stat`                          | psutil                                        |
+| CPU clock       | `scaling_cur_freq`                    | MSI Afterburner *(real clock, with boost)*    |
+| CPU temperature | hwmon `k10temp` / `coretemp`          | Afterburner, then LibreHardwareMonitor        |
+| CPU power       | —                                     | Afterburner                                   |
+| RAM             | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`               |
+| GPU / VRAM      | `nvidia-smi`, `amdgpu`, `i915`        | `nvidia-smi`, then Afterburner sensors        |
+| FPS / session   | **MangoHud** CSV logs                 | **RivaTuner (RTSS)**, sampled every 100 ms    |
+| Controllers     | `/sys/class/input` + `power_supply`   | raw HID *(Sony)*, XInput *(Xbox)*             |
 
-> Pourquoi 100 ms sous Windows : les « lows » ont besoin de beaucoup de points. À une
-> mesure par seconde, le 0.1 % low se calculerait sur 60 valeurs par minute et ne
-> voudrait plus rien dire. On échantillonne donc RTSS à la même cadence que le
-> `log_interval` de MangoHud.
+> Why 100 ms on Windows: the "lows" need a lot of data points. At one sample per second,
+> the 0.1% low would be computed from 60 values per minute and would be meaningless. So
+> RTSS is sampled at the same rate as MangoHud's `log_interval`.
 
-## Activer le FPS sous Linux (MangoHud)
+## Enable FPS on Linux (MangoHud)
 
-> Sous Windows, rien à configurer : il suffit que **RivaTuner (RTSS)** tourne, ce qui
-> est le cas dès qu'on lance MSI Afterburner.
+> On Windows there's nothing to configure: **RivaTuner (RTSS)** just needs to be running,
+> which is the case as soon as MSI Afterburner is started.
 
-Le FPS provient des **logs CSV** de MangoHud, pas de l'overlay à l'écran : avoir le HUD
-MangoHud qui s'affiche dans le jeu **ne suffit pas**, il faut aussi que MangoHud
-*enregistre* un log (ce qu'il ne fait pas par défaut).
+FPS comes from MangoHud's **CSV logs**, not from the on-screen overlay: having the
+MangoHud HUD visible in game **is not enough**, MangoHud must also *record* a log (which
+it doesn't do by default).
 
-**Le plus simple** : si CachyMonitor ne voit aucun log, il affiche un message et un bouton
-**« Activer le logging MangoHud »**. Un clic (après confirmation) ajoute les bonnes lignes
-dans ta config, avec une sauvegarde (`MangoHud.conf.cachymonitor.bak`). Relance ensuite le jeu.
+**The easy way**: if CachyMonitor finds no log, it shows a message and an **"Enable
+MangoHud logging"** button. One click (after confirmation) adds the right lines to your
+config, with a backup (`MangoHud.conf.cachymonitor.bak`). Then restart the game.
 
-**À la main** : ajoute à `~/.config/MangoHud/MangoHud.conf` :
+**By hand**: add this to `~/.config/MangoHud/MangoHud.conf`:
 
 ```ini
 output_folder=~/.local/share/MangoHud/logs
@@ -297,117 +279,111 @@ log_interval=100
 log_duration=86400
 ```
 
-> `log_duration` : sans lui, l'enregistrement s'arrête après 30 s et les FPS disparaissent.
-> Tu peux aussi lancer l'enregistrement à la volée avec la touche `toggle_logging`
-> (Maj gauche + F2 par défaut avec Goverlay).
+> `log_duration`: without it, recording stops after 30 seconds and the FPS disappears.
+> You can also start recording on the fly with the `toggle_logging` key (Left Shift + F2
+> by default with GOverlay).
 
-Puis lance un jeu avec MangoHud :
+Then launch a game with MangoHud:
 
-- **Steam** → propriétés du jeu → options de lancement : `mangohud %command%`
-- **En direct** : `mangohud <jeu>`
+- **Steam**: game properties > launch options: `mangohud %command%`
+- **Directly**: `mangohud <game>`
 
-Dès qu'un jeu tourne et écrit un log, CachyMonitor affiche le FPS automatiquement
-(et repasse à « — » quelques secondes après la fermeture du jeu).
+As soon as a game is running and writing a log, CachyMonitor shows the FPS automatically
+(and goes back to `—` a few seconds after the game closes).
 
-> Les dossiers cherchés sont configurables en haut du script (`FPS_LOG_DIRS`).
+> The folders it searches can be changed at the top of the script (`FPS_LOG_DIRS`).
 
-## Compatibilité matérielle
+## Hardware compatibility
 
-CachyMonitor vise **tout matériel**, mais tout n'est pas vérifié.
+CachyMonitor aims to support **any hardware**, but not everything has been verified.
 
 **Linux**
 
 | | CPU | GPU |
 |---|---|---|
-| **AMD** | ✅ testé (`k10temp`) | ⚠️ écrit, non testé (`amdgpu` via `/sys`) |
-| **Intel** | ⚠️ écrit, non testé (`coretemp`) | ⚠️ partiel, non testé (`i915`/`xe`) |
-| **NVIDIA** | — | ✅ testé (`nvidia-smi`) |
+| **AMD** | Tested (`k10temp`) | Written, untested (`amdgpu` via `/sys`) |
+| **Intel** | Written, untested (`coretemp`) | Partial, untested (`i915`/`xe`) |
+| **NVIDIA** | — | Tested (`nvidia-smi`) |
 
 **Windows 11**
 
 | | CPU | GPU |
 |---|---|---|
-| **AMD** | ✅ testé (via Afterburner) | ⚠️ écrit, non testé (capteurs Afterburner) |
-| **Intel** | ⚠️ écrit, non testé (via Afterburner) | ⚠️ écrit, non testé (capteurs Afterburner) |
-| **NVIDIA** | — | ✅ testé (`nvidia-smi`) |
+| **AMD** | Tested (via Afterburner) | Written, untested (Afterburner sensors) |
+| **Intel** | Written, untested (via Afterburner) | Written, untested (Afterburner sensors) |
+| **NVIDIA** | — | Tested (`nvidia-smi`) |
 
-Sous Windows, l'usage CPU, la RAM et le nom du processeur ne dépendent d'aucun
-matériel particulier et fonctionnent partout. À l'inverse, sur une carte non-NVIDIA
-le repli Afterburner affichera la carte sous le nom générique « GPU » et laissera la
-jauge VRAM à 0 % — Afterburner ne publie pas la VRAM totale.
+On Windows, CPU usage, RAM and the processor name don't depend on any particular
+hardware and work everywhere. On the other hand, on a non-NVIDIA card the Afterburner
+fallback shows the card under the generic name "GPU" and leaves the VRAM gauge at 0%,
+because Afterburner doesn't publish total VRAM.
 
-**Manettes, Linux** : ✅ testé avec une **DualSense (PS5) en Bluetooth**. Les
-manettes Xbox (pilotes `xpad` / `xpadneo`), Switch Pro et DualShock 4 passent par
-les mêmes fichiers du noyau et devraient fonctionner, mais n'ont pas été essayées.
-Une manette dont le pilote ne publie pas sa batterie s'affiche quand même, avec
-`—` à la place du pourcentage.
+**Controllers, Linux**: tested with a **DualSense (PS5) over Bluetooth**. Xbox
+controllers (`xpad` / `xpadneo` drivers), Switch Pro and DualShock 4 use the same kernel
+files and should work, but haven't been tried. A controller whose driver doesn't publish
+its battery still shows up, with `—` instead of a percentage.
 
-**Manettes, Windows** : ✅ testé avec une **DualSense (PS5)**, en Bluetooth **et**
-en USB-C — les deux cas sont bien différents, Windows n'offrant pas la même façon
-de lire la manette sur l'un et sur l'autre. La DualShock 4 est écrite d'après la
-documentation mais ⚠️ **non testée**. Les manettes **Xbox** passent par XInput, qui
-ne publie ni le modèle ni un pourcentage, seulement quatre niveaux de batterie :
-⚠️ écrit, non testé faute de manette Xbox sous la main.
+**Controllers, Windows**: tested with a **DualSense (PS5)**, over Bluetooth **and** USB-C.
+These are two quite different cases, since Windows doesn't give the same way to read the
+controller in each. DualShock 4 support is written from the documentation but
+**untested**. **Xbox** controllers go through XInput, which publishes neither the model
+nor a percentage, only four battery levels: written, untested (no Xbox controller at hand).
 
-> Si une manette Sony est traduite en manette Xbox par **Steam** ou **DS4Windows**,
-> elle peut apparaître deux fois dans la carte : rien ne permet de relier la manette
-> virtuelle à son original, et masquer un doublon risquerait de masquer une vraie
-> seconde manette.
+> If a Sony controller is translated into an Xbox controller by **Steam** or
+> **DS4Windows**, it may appear twice in the card: there's no way to link the virtual
+> controller to the real one, and hiding a duplicate could hide a genuine second
+> controller.
 
-**Configurations réellement vérifiées** : AMD Ryzen 5 5600 + NVIDIA RTX 3060, sous
-CachyOS / KDE Plasma / Wayland **et** sous Windows 11 Pro 24H2 avec MSI Afterburner
-et RivaTuner (RTSS 7.x).
+**Actually verified setups**: AMD Ryzen 5 5600 + NVIDIA RTX 3060, on
+CachyOS / KDE Plasma / Wayland **and** on Windows 11 Pro 24H2 with MSI Afterburner and
+RivaTuner (RTSS 7.x).
 
-Le reste est écrit d'après la documentation du noyau, sans matériel sous la main
-pour l'exécuter. L'application ne plantera pas si un capteur manque : la valeur
-concernée affiche simplement `—`.
+Everything else is written from the kernel documentation, without hardware at hand to
+run it. The app won't crash if a sensor is missing: that value just shows `—`.
 
-À noter pour les GPU Intel : le taux d'occupation n'est pas exposé dans `/sys`
-et demande `intel_gpu_top` avec les droits root. Seuls le nom, la température et
-la fréquence sont donc lus. La VRAM est de la mémoire partagée, sans compteur
-dédié.
+Note for Intel GPUs: utilisation isn't exposed in `/sys` and requires `intel_gpu_top`
+with root rights. So only the name, temperature and clock speed are read. VRAM is shared
+memory, with no dedicated counter.
 
-### J'ai besoin de vous 🙏
+### I need your help
 
-J'ai créé CachyMonitor seul, et je n'ai **qu'une seule machine** pour le tester
-(AMD Ryzen 5 5600 + NVIDIA RTX 3060). Autrement dit : **je n'ai aucune idée de la
-façon dont l'application se comporte sur un autre matériel que le mien.**
+I made CachyMonitor on my own, and I have **only one machine** to test it on (AMD
+Ryzen 5 5600 + NVIDIA RTX 3060). In other words: **I have no idea how the app behaves
+on any hardware other than mine.**
 
-Un Radeon, un CPU Intel, un GPU intégré… chaque configuration est différente, et
-sans vous, ces cas resteront des angles morts. **C'est encore plus vrai pour la
-version Windows 11, toute nouvelle** : elle n'a tourné que sur une seule machine. C'est vraiment là que j'ai besoin
-de la communauté : **votre commentaire est le seul moyen de savoir comment l'app
-réagit sur votre matériel**, et donc de l'améliorer pour tout le monde.
+A Radeon, an Intel CPU, an integrated GPU... every setup is different, and without you
+those cases stay blind spots. **This is even more true for the new Windows 11 version**,
+which has only ever run on one machine. Your feedback is the only way for me to know how
+the app reacts on your hardware, and so to improve it for everyone.
 
-> **Sous Windows**, deux scripts de diagnostic sont fournis dans `scripts/` :
-> `test_afterburner.py` liste tous les capteurs qu'Afterburner publie sur votre machine,
-> et `test_rtss.py` inspecte la mémoire partagée de RivaTuner. Si une valeur reste vide
-> chez vous, leur sortie me dira pourquoi bien mieux qu'une capture d'écran.
+> **On Windows**, two diagnostic scripts are included in `scripts/`:
+> `test_afterburner.py` lists every sensor Afterburner publishes on your machine, and
+> `test_rtss.py` inspects RivaTuner's shared memory. If a value stays empty for you,
+> their output will tell me why much better than a screenshot.
 
-Pas besoin d'être développeur, ni de lancer quoi que ce soit. Un simple mot —
-« chez moi tout marche » ou « la température GPU affiche `—` » — m'aide déjà
-énormément. Racontez-moi votre config et ce que vous voyez, ça compte pour moi 🙂
+You don't need to be a developer or run anything. A simple message such as "everything
+works for me" or "the GPU temperature shows `—`" already helps a lot. Tell me your setup
+and what you see. It really matters to me.
 
-**➡️ [Laisser un commentaire (Discussions)](https://github.com/YOUNES-2-wq/cachymonitor/discussions)**
+**[Leave a comment (Discussions)](https://github.com/YOUNES-2-wq/cachymonitor/discussions)**
 
 <details>
-<summary>💡 Optionnel : joindre un rapport matériel détaillé</summary>
+<summary>Optional: attach a detailed hardware report (Linux)</summary>
 
-Si vous voulez m'aider davantage, un petit script génère un rapport de vos
-capteurs. Il est **en lecture seule**, ne demande **jamais** les droits root et
-n'affiche **aucune** donnée personnelle — vous pouvez l'ouvrir et le lire avant
-de le lancer :
+If you'd like to help further, a small script generates a report of your sensors. It is
+**read-only**, **never** asks for root rights and shows **no** personal data. You can
+open and read it before running it:
 
 ```bash
-cat scripts/hw-report.sh   # pour l'inspecter d'abord, en toute confiance
-./scripts/hw-report.sh     # puis le lancer si vous le souhaitez
+cat scripts/hw-report.sh   # inspect it first
+./scripts/hw-report.sh     # then run it if you want
 ```
 
-Collez sa sortie dans un commentaire ou une
+Paste its output in a comment or an
 [issue](https://github.com/YOUNES-2-wq/cachymonitor/issues).
 </details>
 
-## Licence
+## License
 
-[MIT](LICENSE) — tu peux utiliser, modifier et redistribuer ce code
-librement, à condition de conserver la mention de copyright.
+[MIT](LICENSE): you can use, modify and redistribute this code freely, as long as you
+keep the copyright notice.
