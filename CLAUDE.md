@@ -53,45 +53,39 @@ le dit explicitement — ne jamais le présenter comme testé.
   `86cddc4f-775c-4be8-9480-4b3c481ce8ca`), réponse attendue par e-mail. Quand elle arrive,
   relancer VirusTotal sur l'installateur.
 - La batterie des manettes Xbox attend une manette Xbox pour être vérifiée.
-- `APP_VERSION` vaut encore `"1.4.1"` alors que le tag v1.4.2 existe : à monter à la
-  prochaine version (et avant tout `metainfo.xml` Flathub, qui liste les versions).
 
-## PROCHAINE SESSION (sur Linux) : version Flathub
-Décidé le 04/10/2026 : Younes redémarre sur CachyOS pour attaquer Flathub, projet
-ambitieux. Rien n'est commencé. Lui rappeler ce plan en ouvrant la session.
+## Version Flathub (en cours, 04/10/2026)
+**Règle de Flathub sur l'IA** (docs.flathub.org, "Generative AI policy", lue le 04/10/2026) :
+le manifeste ne doit contenir **aucun contenu écrit ou assisté par IA** (la divulgation
+n'y change rien) ; une IA ne doit ni ouvrir la PR de soumission ni écrire ses commits,
+descriptions ou réponses de revue ; le code de l'appli généré par IA doit être déclaré,
+avec son ampleur, et un relecteur peut refuser sans examen. **Claude n'écrit donc jamais
+le manifeste, le `metainfo.xml` ni la PR** : Younes les écrit, Claude explique les champs
+et relit ou débogue. Claude peut modifier le code de l'appli (à déclarer comme tel).
 
-**Ce que Flathub demande** (à revérifier sur docs.flathub.org avant de commencer) :
-1. Un identifiant d'app : `io.github.YOUNES_2_wq.CachyMonitor` (tiret du login remplacé
-   par `_`, Flathub n'accepte pas `-` dans ce segment ; à confirmer).
-2. Un manifeste Flatpak (`.yml`) : runtime `org.kde.Platform` 6.x, et PySide6 via la base
-   `io.qt.PySide.BaseApp` (évite de compiler Qt). Python et psutil inutiles à ajouter sous
-   Linux, à vérifier.
-3. Un fichier AppStream `metainfo.xml` : description anglaise, captures (celles de
-   `docs/`, en URL GitHub brutes), liste des versions, `content_rating` OARS, licence MIT.
-4. Fichier `.desktop` et icône renommés selon l'identifiant ; l'icône SVG existe déjà.
-5. Tester en local : `flatpak-builder --user --install`, puis `flatpak-builder-lint`.
-6. Soumission : PR sur `github.com/flathub/flathub` (branche `new-pr`). Revue humaine,
-   compter des jours à des semaines. Le dépôt Flathub de l'app est ensuite à entretenir.
-7. **Politique IA** : vérifier ce que Flathub dit des applis écrites avec une IA avant
-   d'investir du temps. Rester transparent, comme dans le README.
+**Acquis** : identifiant `io.github.YOUNES_2_wq.CachyMonitor` (confirmé : `_` devient `-`
+dans l'URL GitHub). Un Flatpak jetable (jamais à soumettre) a été construit avec le runtime
+`org.kde.Platform` 6.11 et la base `io.qt.PySide.BaseApp` 6.11 ; construction par
+`flatpak run org.flatpak.Builder --user --install --state-dir=...` (flatpak-builder n'est
+pas installé en paquet, `--state-dir` doit être sur le même disque que le dossier de build).
 
-**Ce que le bac à sable (sandbox) va casser, capteur par capteur** — le gros du travail :
-- `/proc/stat`, `/proc/meminfo`, `/sys` (hwmon, cpufreq, amdgpu, power_supply des
-  manettes) : lisibles dans le sandbox, a priori OK, à tester.
-- **`nvidia-smi`** : absent du runtime. Peut-être fourni par l'extension
-  `org.freedesktop.Platform.GL.nvidia-*` ; sinon `flatpak-spawn --host` (demande
-  `--talk-name=org.freedesktop.Flatpak`, permission que Flathub accepte mal), ou NVML
-  via `libnvidia-ml.so`. Point le plus incertain.
-- **Logs MangoHud** : `--filesystem=xdg-data/MangoHud:ro` pour les lire, et
-  `xdg-config/MangoHud` en écriture pour le bouton « Activer le logging ». Attention :
-  un jeu lancé via Steam en Flatpak écrit ses logs dans `~/.var/app/com.valvesoftware.Steam/`.
-- **`lspci`** (nom du GPU) : absent ; lire `/sys/bus/pci` + `pci.ids`, ou embarquer pciutils.
-- **`dmidecode`** (type/vitesse RAM) : demande root, impossible en Flatpak. Accepter `—`.
-- Réglages (QSettings) : redirigés vers `~/.var/app/<id>/`, rien à faire.
-- `IS_WINDOWS` intact : Flatpak ne concerne que Linux.
+**Résultats dans le sandbox**, vérifiés sur la RTX 3060 :
+- GPU NVIDIA : `nvidia-smi` est absent, mais l'extension NVIDIA fournit `libnvidia-ml`.
+  Corrigé en 04/10/2026 par une lecture NVML (ctypes) dans `cachymonitor.py`. OK.
+- CPU, températures, manette (DualSense), `lspci` : OK. FPS : OK avec SuperTuxKart.
+- `dmidecode` absent : la RAM (type, vitesse) restera à `—`, accepté.
+- Logs MangoHud : le Goverlay de Younes écrit dans `~/.local/share/goverlay` ; le prototype
+  a eu besoin de `--filesystem=xdg-data/goverlay:ro` (et `xdg-data/MangoHud:ro`).
+  Le bouton "Activer le logging" écrit dans `~/.config/MangoHud` : bloqué par le sandbox,
+  non testé. Un jeu Steam en Flatpak écrit ses logs dans `~/.var/app/com.valvesoftware.Steam/`.
 
-**Ordre conseillé** : construire le Flatpak en local et regarder ce qui affiche `—`, avant
-d'écrire la moindre ligne pour Flathub.
+**Reste à décider/faire** (par Younes) : quelles permissions demander (Flathub veut le
+minimum et préfère les portails), écrire le manifeste, le `metainfo.xml` (captures dans
+`docs/`, `content_rating` OARS, licence MIT, liste des versions), le `.desktop` et l'icône
+renommés selon l'identifiant, tester avec `flatpak-builder-lint`, puis la PR sur
+`github.com/flathub/flathub` (branche `new-pr`) ; revue humaine de quelques jours à
+plusieurs semaines. Risque : refus à cause de la part d'IA. Prototype à désinstaller après :
+`flatpak uninstall --user io.github.YOUNES_2_wq.CachyMonitor`.
 
 ## Plan de promotion (en pause, décidé le 04/10/2026)
 Faites le 04/10/2026 : description GitHub anglaise + mots-clés ; README principal en
