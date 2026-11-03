@@ -58,7 +58,7 @@ from PySide6.QtWidgets import (
     QPushButton, QMessageBox,
 )
 
-APP_VERSION = "1.4.3"
+APP_VERSION = "1.4.4"
 
 IS_WINDOWS = sys.platform.startswith("win")
 
@@ -164,6 +164,8 @@ TRANSLATIONS = {
             "CachyMonitor lit les FPS dans les logs de MangoHud, que MangoHud "
             "n'écrit pas par défaut.\n\nCela ajoute autostart_log=1 dans {path} "
             "(une sauvegarde est faite avant). Relance ensuite ton jeu.",
+        "Hide MangoHud overlay": "Cacher l'overlay MangoHud",
+        "Show MangoHud overlay": "Afficher l'overlay MangoHud",
         "Logging enabled": "Logging activé",
         "Done. Restart your game for MangoHud to pick it up.":
             "C'est fait. Relance ton jeu pour que MangoHud en tienne compte.",
@@ -286,6 +288,36 @@ def enable_mangohud_logging():
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(out) + "\n")
     return path
+
+
+def mangohud_hud_hidden():
+    """True si le HUD est rendu invisible (alpha=0) ; les logs continuent."""
+    try:
+        with open(mangohud_conf_path(), encoding="utf-8") as f:
+            val = _conf_values(f.read().splitlines()).get("alpha", "1")
+        return float(val) <= 0
+    except (OSError, ValueError):
+        return False
+
+
+def set_mangohud_hud_hidden(hidden):
+    """Cache/affiche le HUD via alpha, sans arrêter les mesures ni les logs
+    (contrairement à no_display). MangoHud relit le fichier à chaud."""
+    path = mangohud_conf_path()
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+        with open(path + ".cachymonitor.bak", "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+    except FileNotFoundError:
+        lines = []
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    out = [l for l in lines if l.lstrip().startswith("#") or "=" not in l
+           or l.split("=", 1)[0].strip() != "alpha"]
+    if hidden:
+        out.append("alpha=0.0")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
 
 
 def no_game_text():
@@ -2828,6 +2860,15 @@ class GamePanel(QFrame):
         self.enable_btn.setCursor(Qt.PointingHandCursor)
         self.enable_btn.clicked.connect(self._enable_logging)
         lay.addWidget(self.enable_btn, 0, Qt.AlignCenter)
+
+        # Linux : afficher/cacher le HUD MangoHud (les logs continuent)
+        self.hud_btn = QPushButton()
+        self.hud_btn.setObjectName("optButton")
+        self.hud_btn.setCursor(Qt.PointingHandCursor)
+        self.hud_btn.clicked.connect(self._toggle_hud)
+        self.hud_btn.setVisible(not IS_WINDOWS)
+        lay.addWidget(self.hud_btn, 0, Qt.AlignCenter)
+        self._refresh_hud_btn()
         self._refresh_idle()
 
         self.retheme()
@@ -2843,6 +2884,7 @@ class GamePanel(QFrame):
         ):
             box.cap.setText(tr(key).format(win=GAME_WINDOW_S))
         self.enable_btn.setText(tr("Enable MangoHud logging"))
+        self._refresh_hud_btn()
         if self.idle:
             self._refresh_idle()
 
@@ -2851,6 +2893,17 @@ class GamePanel(QFrame):
         self.status.setText(no_game_text())
         self.enable_btn.setVisible(
             self.idle and not IS_WINDOWS and not mangohud_logging_enabled())
+
+    def _refresh_hud_btn(self):
+        self.hud_btn.setText(tr("Show MangoHud overlay") if mangohud_hud_hidden()
+                             else tr("Hide MangoHud overlay"))
+
+    def _toggle_hud(self):
+        try:
+            set_mangohud_hud_hidden(not mangohud_hud_hidden())
+        except OSError as e:
+            QMessageBox.warning(self, tr("Could not edit the MangoHud config"), str(e))
+        self._refresh_hud_btn()
 
     def _enable_logging(self):
         path = mangohud_conf_path()
