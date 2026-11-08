@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
 
 PackageIdentifier: YOUNES-2-wq.CachyMonitor
-PackageVersion: 1.4.1
+PackageVersion: 1.5.0
 PackageLocale: fr-FR
 Publisher: YOUNES-2-wq
 PublisherUrl: https://github.com/YOUNES-2-wq
@@ -21,20 +21,22 @@ Description: |-
   la manette connectée, sa connexion (câble ou Bluetooth) et son niveau de batterie.
   Thème clair ou sombre suivant le bureau, interface en français ou en anglais.
 
-  Sous Windows, les températures, la consommation du CPU et les FPS proviennent de
-  MSI Afterburner et de RivaTuner (RTSS), qui doivent être installés et lancés — le
-  système n'expose pas ces capteurs autrement. Sans eux, l'application reste
-  utilisable mais ces valeurs restent vides. Le GPU NVIDIA est lu via nvidia-smi.
+  Sous Windows, la température, la consommation et la fréquence réelle du CPU
+  proviennent de MSI Afterburner, qui doit être installé et lancé — le système
+  n'expose pas ces capteurs autrement. Les FPS viennent de RivaTuner (RTSS), ou à
+  défaut de PresentMon d'Intel, inclus dans l'installateur. Le GPU NVIDIA est lu via
+  nvidia-smi.
 
   Le même fichier fonctionne aussi sous Linux, où les mesures viennent de /proc, /sys
   et des journaux de MangoHud.
-ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.4.1
+ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.5.0
 Moniker: cachymonitor
 Tags:
 - fps
 - gaming
 - hardware-monitor
 - monitoring
+- presentmon
 - moniteur
 - rivatuner
 - rtss

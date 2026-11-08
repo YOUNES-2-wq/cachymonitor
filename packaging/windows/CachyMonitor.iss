@@ -92,5 +92,7 @@ Name: "{autodesktop}\{#AppName}";           Filename: "{app}\{#AppExeName}"; Tas
 ; commande : le reste de l'installation peut rester sans élévation. {username}
 ; est le compte qui lance l'installation. « Already a member » n'est pas une
 ; erreur, d'où le SilentlyContinue.
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command ""Add-LocalGroupMember -SID 'S-1-5-32-559' -Member '{username}' -ErrorAction SilentlyContinue"""; Verb: runas; Flags: shellexec waituntilterminated runhidden; StatusMsg: "{cm:PerfGroupRun}"; Tasks: perfgroup
+; skipifsilent (depuis la 1.5.1) : une installation silencieuse (winget, mise à jour
+; automatique) ne doit jamais s'interrompre sur l'invite administrateur.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command ""Add-LocalGroupMember -SID 'S-1-5-32-559' -Member '{username}' -ErrorAction SilentlyContinue"""; Verb: runas; Flags: shellexec waituntilterminated runhidden skipifsilent; StatusMsg: "{cm:PerfGroupRun}"; Tasks: perfgroup
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent

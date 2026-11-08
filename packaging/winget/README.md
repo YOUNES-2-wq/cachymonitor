@@ -4,9 +4,10 @@ Ces trois fichiers décrivent CachyMonitor pour **winget**, le gestionnaire de p
 de Windows. Le paquet `YOUNES-2-wq.CachyMonitor` est **accepté dans le catalogue
 officiel** depuis la 1.3.2
 ([microsoft/winget-pkgs#419610](https://github.com/microsoft/winget-pkgs/pull/419610),
-fusionnée le 19/09/2026) : l'installation tient en une ligne. La mise à jour vers la
-1.4.1 est soumise dans
-[microsoft/winget-pkgs#445910](https://github.com/microsoft/winget-pkgs/pull/445910).
+fusionnée le 19/09/2026) : l'installation tient en une ligne. La 1.4.1 a suivi
+([#445910](https://github.com/microsoft/winget-pkgs/pull/445910)) ; la mise à jour vers
+la 1.5.0 est soumise dans
+[microsoft/winget-pkgs#474985](https://github.com/microsoft/winget-pkgs/pull/474985).
 
 ```powershell
 winget install cachymonitor
@@ -49,6 +50,11 @@ d'un installateur Inno Setup est un binaire 32 bits, même quand il installe une
 application 64 bits — l'outil le détecte donc comme x86 et n'arrive plus à le rattacher
 au nœud `Architecture: x64` du manifeste publié. Le suffixe impose l'architecture et la
 portée à la main.
+
+⚠️ **Depuis la 1.5.0, garder `InstallerSwitches: Custom: /MERGETASKS="!perfgroup"`**
+dans le manifeste d'installation : vérifier qu'il y est toujours après
+`wingetcreate update`. La case « Autoriser PresentMon » ouvre l'invite administrateur de Windows,
+ce qui interromprait une installation silencieuse.
 
 ## Vérifier avant de soumettre
 
