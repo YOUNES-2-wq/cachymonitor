@@ -1,4 +1,4 @@
-; Installateur Windows de CachyMonitor (Inno Setup 6).
+﻿; Installateur Windows de CachyMonitor (Inno Setup 6).
 ;
 ; Il empaquette le dossier autonome produit par PyInstaller (l'exécutable et ses
 ; bibliothèques) : la personne qui installe n'a donc besoin ni de Python, ni de
@@ -54,8 +54,22 @@ MinVersion=10.0
 Name: "french";  MessagesFile: "compiler:Languages\French.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
+[CustomMessages]
+french.PerfGroupGroup=Mesure des FPS sans MSI Afterburner :
+english.PerfGroupGroup=FPS measurement without MSI Afterburner:
+french.PerfGroupTask=Autoriser PresentMon (ajoute ton compte au groupe « Utilisateurs du journal de performances » ; demande les droits administrateur ; à prendre en compte après déconnexion)
+english.PerfGroupTask=Allow PresentMon (adds your account to the "Performance Log Users" group; asks for administrator rights; takes effect after signing out)
+french.PerfGroupRun=Autorisation de PresentMon...
+english.PerfGroupRun=Allowing PresentMon...
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+; Sans ce groupe, PresentMon (lancé sans élévation) se voit refuser les traces
+; ETW de Windows : « access denied ». Le groupe est désigné par son SID, car son
+; nom est traduit dans chaque langue de Windows. Pour annuler plus tard, dans un
+; terminal administrateur :
+;   Remove-LocalGroupMember -SID S-1-5-32-559 -Member <nom du compte>
+Name: "perfgroup"; Description: "{cm:PerfGroupTask}"; GroupDescription: "{cm:PerfGroupGroup}"
 
 [Files]
 ; Tout le dossier produit par PyInstaller : l'exécutable, et ses bibliothèques
@@ -64,6 +78,9 @@ Source: "..\..\dist\{#AppName}\*"; DestDir: "{app}"; Flags: ignoreversion recurs
 Source: "..\..\README.md";          DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.fr.md";       DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE";            DestDir: "{app}"; Flags: ignoreversion
+; PresentMon d'Intel, téléchargé et vérifié (empreinte + signature) par build.ps1.
+Source: "..\..\build\presentmon\PresentMon.exe";         DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\build\presentmon\PresentMon-LICENSE.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}";                 Filename: "{app}\{#AppExeName}"
@@ -71,4 +88,9 @@ Name: "{group}\{cm:UninstallProgram,{#AppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}";           Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
+; « runas » fait apparaître l'invite administrateur de Windows pour cette seule
+; commande : le reste de l'installation peut rester sans élévation. {username}
+; est le compte qui lance l'installation. « Already a member » n'est pas une
+; erreur, d'où le SilentlyContinue.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command ""Add-LocalGroupMember -SID 'S-1-5-32-559' -Member '{username}' -ErrorAction SilentlyContinue"""; Verb: runas; Flags: shellexec waituntilterminated runhidden; StatusMsg: "{cm:PerfGroupRun}"; Tasks: perfgroup
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent

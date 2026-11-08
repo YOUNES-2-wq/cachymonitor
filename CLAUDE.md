@@ -48,6 +48,32 @@ pleine dès que son circuit de charge a fini, et le pilote Linux arrondit pareil
 **Non testé, faute de matériel** : DualShock 4, et les manettes Xbox via XInput. Le README
 le dit explicitement — ne jamais le présenter comme testé.
 
+## PresentMon sous Windows (1.5.0, 08/11/2026)
+FPS sans Afterburner : `PresentMonGameReader` lance PresentMon 2.6.0 (Intel, MIT) en
+sous-processus et lit son CSV sur stdout. `WindowsGameReader` montre RivaTuner s'il
+mesure en direct, sinon PresentMon. Plan complet de sortie d'Afterburner : 1.5.1
+fréquence CPU + NVML, 1.6.0 priorité inversée, 1.7.0 LibreHardwareMonitor + PawnIO,
+2.0.0 retrait d'Afterburner — une étape par version, testée sur le PC de Younes.
+
+Pièges vérifiés, à ne pas réintroduire :
+1. **Afterburner ne publie « Framerate » que pour la fenêtre au premier plan** (FLT_MAX
+   ou 0 sinon) : c'est pour ça que PresentMon prend le relais quand on clique ailleurs.
+2. **Choix du jeu** : seulement la fenêtre au premier plan qui couvre tout son écran, hors
+   `PRESENTMON_IGNORE`. Le mode de présentation « Hardware » ne suffit pas : un navigateur
+   (Zen) y passe parfois et était pris pour un jeu.
+3. **Lire le flux jusqu'au bout, même à l'arrêt** : un tuyau qu'on cesse de vider bloque
+   PresentMon, qui ne quitte plus (5 s puis arrêt forcé).
+4. stderr fusionné dans stdout (un seul tuyau, pas de blocage) ; images de plus d'une
+   seconde écartées (jeu en pause, sinon fausse saccade).
+5. Sans élévation, le compte doit être dans le groupe S-1-5-32-559 (case « perfgroup »
+   de l'installateur), sinon « access denied ».
+6. Tester à côté de l'appli installée : changer `PRESENTMON_SESSION`, sinon
+   `--stop_existing_session` coupe la session de l'appli.
+
+`build.ps1` télécharge PresentMon et vérifie SHA256 + signature Intel. Sur le PC de
+Younes, `python` n'est que l'alias du Microsoft Store : le vrai est `py`. Avant le build :
+`function global:python { & py @args }`.
+
 ## Reste à faire
 - Faux positifs antivirus : signalement Microsoft **envoyé le 03/10/2026** (WDSI, ID
   `86cddc4f-775c-4be8-9480-4b3c481ce8ca`), réponse attendue par e-mail. Quand elle arrive,

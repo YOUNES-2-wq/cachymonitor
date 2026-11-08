@@ -59,7 +59,7 @@ VSVersionInfo(
 )
 "@ | Set-Content -Path $versionFile -Encoding UTF8
 
-Write-Host "== 1/2  Empaquetage de l'executable (PyInstaller)" -ForegroundColor Cyan
+Write-Host "== 1/3  Empaquetage de l'executable (PyInstaller)" -ForegroundColor Cyan
 # --noupx : si UPX arrive un jour dans le PATH, PyInstaller s'en servirait tout
 # seul pour compresser les DLL, ce qui ramènerait les faux positifs antivirus.
 python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
@@ -74,7 +74,35 @@ python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
     $src
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller a echoue" }
 
-Write-Host "== 2/2  Fabrication de l'installateur (Inno Setup)" -ForegroundColor Cyan
+Write-Host "== 2/3  PresentMon (Intel, licence MIT)" -ForegroundColor Cyan
+# PresentMon mesure les FPS sans Afterburner ni RivaTuner (source de secours
+# depuis 1.5.0). On l'embarque tel que publié par Intel : version figée, et
+# empreinte SHA256 vérifiée, pour qu'un fichier modifié ne parte jamais dans
+# l'installateur. Cette empreinte est celle de la copie testée le 08/11/2026
+# (signature Authenticode Intel valide, VirusTotal 0/71).
+$pmVersion = "2.6.0"
+$pmSha256  = "B2A706BC6AD475749E3B7E3409263AA1E6906D45BDCF993F6DBC0F660188F1AF"
+$pmUrl     = "https://github.com/GameTechDev/PresentMon/releases/download/v$pmVersion/PresentMon-$pmVersion-x64.exe"
+$pmLicUrl  = "https://raw.githubusercontent.com/GameTechDev/PresentMon/v$pmVersion/LICENSE.txt"
+$pmDir     = Join-Path $work "presentmon"
+$pmExe     = Join-Path $pmDir "PresentMon.exe"
+New-Item -ItemType Directory -Force $pmDir | Out-Null
+if (-not (Test-Path $pmExe) -or (Get-FileHash $pmExe -Algorithm SHA256).Hash -ne $pmSha256) {
+    Invoke-WebRequest -Uri $pmUrl -OutFile $pmExe -UseBasicParsing
+}
+$hash = (Get-FileHash $pmExe -Algorithm SHA256).Hash
+if ($hash -ne $pmSha256) {
+    Remove-Item $pmExe -Force
+    throw "Empreinte de PresentMon inattendue ($hash) : fichier refuse"
+}
+$sig = Get-AuthenticodeSignature $pmExe
+if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch "Intel Corporation") {
+    throw "Signature de PresentMon invalide : $($sig.Status)"
+}
+Invoke-WebRequest -Uri $pmLicUrl -OutFile (Join-Path $pmDir "PresentMon-LICENSE.txt") -UseBasicParsing
+Write-Host "   PresentMon $pmVersion : empreinte et signature Intel verifiees" -ForegroundColor DarkGray
+
+Write-Host "== 3/3  Fabrication de l'installateur (Inno Setup)" -ForegroundColor Cyan
 # Inno Setup se pose soit dans Program Files, soit — quand winget l'installe pour
 # le seul utilisateur courant — sous %LOCALAPPDATA%\Programs. On regarde aussi le
 # PATH, au cas où il aurait été installé autrement.

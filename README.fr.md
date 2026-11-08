@@ -20,11 +20,11 @@ dans l'exécutable. Toutes les fonctions de la version Linux sont là — statis
 session (1 % low, 0.1 % low, moyenne), graphe de frametime, détection du goulot
 d'étranglement CPU/GPU, thème clair/sombre et interface en français ou en anglais.
 
-> **Deux logiciels sont nécessaires pour que tout fonctionne sous Windows :**
-> **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** et **RivaTuner (RTSS)**,
-> livré avec lui. Les deux sont gratuits. Sans eux, l'application démarre et affiche
-> l'usage CPU, la RAM et le GPU, mais **la température, la consommation et les FPS
-> restent vides**. Windows n'expose pas ces capteurs comme le fait le noyau Linux :
+> **Sous Windows, [MSI Afterburner](https://www.msi.com/Landing/afterburner) reste
+> conseillé.** Il est gratuit et livré avec RivaTuner (RTSS). Sans lui, l'application
+> affiche l'usage CPU, la RAM, le GPU **et les FPS**, grâce à PresentMon d'Intel, inclus
+> depuis la 1.5.0. En revanche, **la température, la consommation et la fréquence réelle
+> du CPU restent vides**. Windows n'expose pas ces capteurs comme le fait le noyau Linux :
 > CachyMonitor lit donc ceux d'Afterburner.
 > [Détails](#prérequis--msi-afterburner-et-rivatuner)
 
@@ -138,20 +138,40 @@ le noyau Linux, où tout se lit dans `/sys`. L'application s'appuie donc sur
 | Pour obtenir | Il faut |
 |---|---|
 | Température, consommation et fréquence réelle du CPU | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (gratuit) |
-| FPS et statistiques de session (1 % low, 0.1 % low…) | **RivaTuner (RTSS)**, installé automatiquement avec Afterburner |
+| FPS et statistiques de session (1 % low, 0.1 % low…) | **RivaTuner (RTSS)**, installé avec Afterburner. Sinon **PresentMon**, inclus dans l'installateur |
 | Usage CPU, RAM, nom du processeur | rien, ça marche partout |
 | GPU, VRAM, température GPU | rien sur NVIDIA (`nvidia-smi`) ; Afterburner sinon |
 
 **Ce qu'il faut faire :** installer Afterburner, le laisser tourner (il démarre RTSS
 tout seul), et c'est fini. Aucun réglage à faire dans CachyMonitor.
 
-**Sans Afterburner**, l'application démarre et reste utilisable : usage CPU, RAM, GPU et
-VRAM s'affichent normalement. En revanche la température, la consommation et les FPS
-restent à `—`. Un repli existe pour la seule température, via
+**Sans Afterburner**, l'application démarre et reste utilisable : usage CPU, RAM, GPU,
+VRAM et FPS s'affichent normalement. En revanche, la température, la consommation et la
+fréquence réelle du CPU restent à `—`. Un repli existe pour la seule température, via
 [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
 
 > Les chiffres viennent **de la même source que l'OSD de RivaTuner** : le FPS affiché par
 > CachyMonitor est exactement celui que vous voyez en jeu, sans écart de calcul.
+
+### FPS sans Afterburner : PresentMon
+
+Depuis la 1.5.0, l'installateur inclut **[PresentMon](https://github.com/GameTechDev/PresentMon)**,
+l'outil d'Intel (licence MIT) qui mesure chaque image affichée grâce aux traces de
+Windows. Il ne s'injecte pas dans le jeu, et il est sans danger avec les anti-triches :
+testé sur eFootball.
+
+- **RivaTuner reste prioritaire.** PresentMon prend le relais quand RivaTuner ne mesure
+  rien : Afterburner fermé, ou jeu qui n'est plus la fenêtre active (Afterburner ne donne
+  les FPS que du jeu au premier plan). La ligne d'état indique la source utilisée.
+- **Une case de l'installateur**, « Autoriser PresentMon », ajoute votre compte au groupe
+  Windows « Utilisateurs du journal de performances ». Windows demande alors les droits
+  administrateur, et il faut se déconnecter puis se reconnecter une fois. Sans ce groupe,
+  PresentMon n'a pas le droit de mesurer, et CachyMonitor l'indique.
+- **Le jeu doit être en plein écran ou en fenêtre sans bord** quand il est au premier
+  plan. C'est ce qui évite de prendre un navigateur ou un dock pour un jeu. Un jeu en
+  fenêtre classique reste mesuré par RivaTuner.
+- Pour retirer votre compte du groupe plus tard, dans un terminal administrateur :
+  `Remove-LocalGroupMember -SID S-1-5-32-559 -Member VotreNom`
 
 ### Reconstruire l'installateur soi-même
 
@@ -269,7 +289,7 @@ reste (interface, thèmes, langues, calcul des statistiques) est strictement com
 | CPU conso      | —                                     | Afterburner                                  |
 | RAM            | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`              |
 | GPU / VRAM     | `nvidia-smi`, `amdgpu`, `i915`        | `nvidia-smi`, puis capteurs Afterburner      |
-| FPS / session  | logs CSV de **MangoHud**              | **RivaTuner (RTSS)**, relevé toutes les 100 ms |
+| FPS / session  | logs CSV de **MangoHud**              | **RivaTuner (RTSS)**, relevé toutes les 100 ms ; **PresentMon** en secours |
 | Manettes       | `/sys/class/input` + `power_supply`   | HID brut *(Sony)*, XInput *(Xbox)*           |
 
 > Pourquoi 100 ms sous Windows : les « lows » ont besoin de beaucoup de points. À une
@@ -279,8 +299,8 @@ reste (interface, thèmes, langues, calcul des statistiques) est strictement com
 
 ## Activer le FPS sous Linux (MangoHud)
 
-> Sous Windows, rien à configurer : il suffit que **RivaTuner (RTSS)** tourne, ce qui
-> est le cas dès qu'on lance MSI Afterburner.
+> Sous Windows, rien à configurer : **RivaTuner (RTSS)** mesure les FPS dès
+> qu'Afterburner tourne, et sinon **PresentMon** prend le relais.
 
 Le FPS provient des **logs CSV** de MangoHud, pas de l'overlay à l'écran : avoir le HUD
 MangoHud qui s'affiche dans le jeu **ne suffit pas**, il faut aussi que MangoHud

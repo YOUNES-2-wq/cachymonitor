@@ -121,20 +121,40 @@ kernel does (where everything can be read from `/sys`). So the app relies on
 | To get | You need |
 |---|---|
 | CPU temperature, power draw and real clock speed | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (free) |
-| FPS and session statistics (1% low, 0.1% low...) | **RivaTuner (RTSS)**, installed automatically with Afterburner |
+| FPS and session statistics (1% low, 0.1% low...) | **RivaTuner (RTSS)**, installed with Afterburner. Otherwise **PresentMon**, included in the installer |
 | CPU usage, RAM, processor name | nothing, works everywhere |
 | GPU, VRAM, GPU temperature | nothing on NVIDIA (`nvidia-smi`); Afterburner otherwise |
 
 **What to do:** install Afterburner and leave it running (it starts RTSS by itself).
 That's it. There's nothing to configure in CachyMonitor.
 
-**Without Afterburner**, the app still starts and stays usable: CPU, RAM, GPU and VRAM
-usage are shown normally. However, temperature, power draw and FPS stay at `—`. There
-is a fallback for the temperature only, through
+**Without Afterburner**, the app still starts and stays usable: CPU, RAM, GPU, VRAM and
+FPS are shown normally. However, CPU temperature, power draw and real clock speed stay
+at `—`. There is a fallback for the temperature only, through
 [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
 
 > The numbers come **from the same source as the RivaTuner on-screen display**: the FPS
 > shown by CachyMonitor is exactly the one you see in game.
+
+### FPS without Afterburner: PresentMon
+
+Since 1.5.0, the installer includes **[PresentMon](https://github.com/GameTechDev/PresentMon)**,
+Intel's tool (MIT license) that measures every displayed frame through Windows event
+tracing. It doesn't inject anything into the game, and it's safe with anti-cheats:
+tested on eFootball.
+
+- **RivaTuner stays first.** PresentMon takes over when RivaTuner measures nothing:
+  Afterburner closed, or the game is no longer the active window (Afterburner only
+  reports the FPS of the foreground game). The status line shows which source is used.
+- **An installer checkbox**, "Allow PresentMon", adds your account to the Windows
+  "Performance Log Users" group. Windows then asks for administrator rights, and you
+  need to sign out and back in once. Without this group, PresentMon isn't allowed to
+  measure, and CachyMonitor tells you so.
+- **The game must be fullscreen or borderless windowed** while it's in the foreground.
+  That's what keeps a browser or a dock from being taken for a game. A game in a regular
+  window is still measured by RivaTuner.
+- To remove your account from the group later, in an administrator terminal:
+  `Remove-LocalGroupMember -SID S-1-5-32-559 -Member YourName`
 
 ### Rebuild the installer yourself
 
@@ -250,7 +270,7 @@ One file, two sets of sources: `IS_WINDOWS` switches each reader, and everything
 | CPU power       | —                                     | Afterburner                                   |
 | RAM             | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`               |
 | GPU / VRAM      | `nvidia-smi`, `amdgpu`, `i915`        | `nvidia-smi`, then Afterburner sensors        |
-| FPS / session   | **MangoHud** CSV logs                 | **RivaTuner (RTSS)**, sampled every 100 ms    |
+| FPS / session   | **MangoHud** CSV logs                 | **RivaTuner (RTSS)**, sampled every 100 ms; **PresentMon** as a fallback |
 | Controllers     | `/sys/class/input` + `power_supply`   | raw HID *(Sony)*, XInput *(Xbox)*             |
 
 > Why 100 ms on Windows: the "lows" need a lot of data points. At one sample per second,
@@ -259,8 +279,8 @@ One file, two sets of sources: `IS_WINDOWS` switches each reader, and everything
 
 ## Enable FPS on Linux (MangoHud)
 
-> On Windows there's nothing to configure: **RivaTuner (RTSS)** just needs to be running,
-> which is the case as soon as MSI Afterburner is started.
+> On Windows there's nothing to configure: **RivaTuner (RTSS)** measures FPS as soon as
+> Afterburner is running, and **PresentMon** takes over otherwise.
 
 FPS comes from MangoHud's **CSV logs**, not from the on-screen overlay: having the
 MangoHud HUD visible in game **is not enough**, MangoHud must also *record* a log (which
