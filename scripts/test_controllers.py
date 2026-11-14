@@ -16,7 +16,14 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import cachymonitor as cm
+import types
+import cachymonitor
+from cachymon import config as _config, controllers as _controllers
+
+# Les fonctions testees ici sont reparties dans plusieurs modules : on les
+# regroupe sous un seul nom pour garder le reste du script lisible.
+cm = types.SimpleNamespace(**{**vars(_config), **vars(_controllers)})
+cm.APP_VERSION = cachymonitor.APP_VERSION
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                    "test_controllers_result.txt")

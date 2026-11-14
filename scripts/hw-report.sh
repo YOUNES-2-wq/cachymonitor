@@ -82,19 +82,18 @@ echo
 echo "----- Ce que CachyMonitor détecte réellement -----"
 here=$(cd "$(dirname "$0")/.." && pwd)
 python3 - "$here" <<'PY' 2>&1
-import importlib.util, sys, os, time
-base = sys.argv[1]
-spec = importlib.util.spec_from_file_location("cm", os.path.join(base, "cachymonitor.py"))
-cm = importlib.util.module_from_spec(spec); sys.modules["cm"] = cm
+import os, sys, time
+os.environ["CACHYMONITOR_DEBUG"] = "1"      # les erreurs avalees finissent dans le journal
+sys.path.insert(0, sys.argv[1])
 try:
-    spec.loader.exec_module(cm)
+    from cachymon import sensors as cm
 except Exception as e:
     print("ÉCHEC du chargement :", e); sys.exit(1)
 
 print("fichier température CPU :", cm.find_cpu_temp_file())
 print("nom CPU                 :", cm.read_cpu_name())
 print("nom RAM                 :", cm.read_ram_name())
-c = cm.CpuReader(); time.sleep(0.3); d = c.sample()
+c = cm.make_cpu_reader(); time.sleep(0.3); d = c.sample()
 print("CPU  -> %.1f %%  %s MHz  %s °C" % (
     d["cpu_pct"],
     round(d["cpu_freq"]) if d["cpu_freq"] else "?",
@@ -106,6 +105,10 @@ print("GPU  -> %s | %.0f %% | %s °C | %.0f/%.0f MiB | %s MHz | %s W" % (
     g["vram_used"], g["vram_total"],
     round(g["gpu_clock"]) if g["gpu_clock"] else "?",
     round(g["gpu_power"], 1) if g["gpu_power"] else "?"))
+from cachymon import debug
+if os.path.exists(debug.log_path()):
+    print("\nErreurs avalées pendant la lecture (joindre ce texte à l'issue) :")
+    print(open(debug.log_path(), encoding="utf-8").read())
 PY
 
 echo

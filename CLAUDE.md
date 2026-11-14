@@ -1,9 +1,31 @@
 # CachyMonitor — notes pour Claude
 
-Moniteur système gaming en **un seul fichier** (`cachymonitor.py`, Python + PySide6) pour
-Linux et Windows 11. `IS_WINDOWS` aiguille chaque lecteur de capteurs ; interface, thèmes,
-langues (dictionnaire `TRANSLATIONS`) et statistiques sont communs. `APP_VERSION` est la
-seule source du numéro de version (le build Windows la lit).
+Moniteur système gaming (Python + PySide6) pour Linux et Windows 11. `IS_WINDOWS` aiguille
+chaque lecteur de capteurs ; interface, thèmes, langues (dictionnaire `TRANSLATIONS`) et
+statistiques sont communs. `APP_VERSION` (dans `cachymonitor.py`) est la seule source du
+numéro de version (le build Windows la lit).
+
+## Organisation du code (découpé le 2026-11-14, après la 1.5.1)
+`cachymonitor.py` ne garde que le point d'entrée : `APP_VERSION`, `MainWindow`, `main()`.
+Le reste vit dans le dossier `cachymon/` (aucune logique changée, lignes déplacées) :
+`config` (constantes, `IS_WINDOWS`, `APP_ROOT`), `i18n` (TRANSLATIONS, `tr`), `theme`,
+`sensors` (CPU, RAM, GPU), `controllers`, `winshm` (mémoire partagée Afterburner/RTSS),
+`game` (statistiques + MangoHud), `mangohud_conf`, `game_windows` (RTSS, PresentMon),
+`sampler`, `widgets`, `debug`.
+Pièges : une globale réécrite (`global X`) doit rester dans le module qui la définit, et
+`PRESENTMON_STATE` se lit par `game_windows.PRESENTMON_STATE`, jamais par `from ... import`.
+**Non vérifié sur Windows** : le découpage a été testé sous Linux seulement (appli lancée,
+`ruff` sans nom indéfini, tests) ; tester l'installateur Windows avant de publier.
+`packaging/windows/build.ps1` (PyInstaller suit les imports) et le PKGBUILD AUR (copie de
+`cachymon/*.py`, déjà modifié en local, pas poussé) sont à vérifier à la prochaine release.
+
+## Contrôles avant une release
+- `ruff check .` (réglages dans `pyproject.toml`) et `python -m pytest -q` : doivent passer.
+  Les tests (`tests/`) couvrent les calculs purs (FPS, lows, batterie Sony, couleurs,
+  traductions, lecture de log MangoHud) ; la CI GitHub (`.github/workflows/tests.yml`) les lance.
+- Option `--debug` (ou `CACHYMONITOR_DEBUG=1`) : écrit les erreurs normalement avalées dans
+  `~/.cache/cachymonitor/debug.log` (Windows : `%LOCALAPPDATA%\CachyMonitor\debug.log`).
+  À demander aux testeurs Radeon/Intel avec la sortie de `scripts/hw-report.sh`.
 
 ## Avec qui on travaille
 Younes (GitHub `YOUNES-2-wq`, AUR `younes-2`) : gamer, **pas développeur**. Toujours répondre
@@ -11,7 +33,7 @@ Younes (GitHub `YOUNES-2-wq`, AUR `younes-2`) : gamer, **pas développeur**. Tou
 
 ## Distribution
 - **AUR** `cachymonitor` (dépôt séparé `ssh://aur@aur.archlinux.org/cachymonitor.git`,
-  PKGBUILD qui télécharge l'archive du tag GitHub) — en **1.4.4**.
+  PKGBUILD qui télécharge l'archive du tag GitHub) — en **1.6.0**.
 - **winget** `YOUNES-2-wq.CachyMonitor` — en **1.5.0** (1.5.1 soumise) (manifestes dans
   `packaging/winget/manifests`, procédure dans `packaging/winget/README.md`).
 - **Installateur Windows** : `packaging/windows/build.ps1` (PyInstaller en `--onedir`,
@@ -86,9 +108,7 @@ Younes, `python` n'est que l'alias du Microsoft Store : le vrai est `py`. Avant 
   conso CPU dépendent encore d'Afterburner (étape 1.7.0).
 
 ## Reste à faire
-- Faux positifs antivirus : signalement Microsoft **envoyé le 03/10/2026** (WDSI, ID
-  `86cddc4f-775c-4be8-9480-4b3c481ce8ca`), réponse attendue par e-mail. Quand elle arrive,
-  relancer VirusTotal sur l'installateur.
+- Faux positifs antivirus : Windows Defender a retiré CachyMonitor de sa liste (confirmé par Younes le 2026-11-14). Le signalement WDSI est clos.
 - La batterie des manettes Xbox attend une manette Xbox pour être vérifiée.
 
 ## Version Flathub (en cours, 04/10/2026)

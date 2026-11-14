@@ -1,0 +1,24 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dependances
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyside6 psutil ruff pytest
+      - name: Ruff (fautes de code)
+        run: ruff check .
+      - name: Tests
+        run: python -m pytest -q
+        env:
+          QT_QPA_PLATFORM: offscreen

@@ -1,0 +1,13 @@
+# Reglages des outils de controle uniquement : l'appli ne s'installe pas via pip
+# (AUR, installateur Windows), donc pas de section [project].
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+# F : fautes reelles (nom indefini, import ou variable inutiles) ; E9 : syntaxe.
+select = ["F", "E9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -81,7 +81,6 @@ log("Recherche de l'entrée du jeu...")
 log("=" * 70)
 
 def find_game_entry(data):
-    GAME_KEYWORDS = [b"eFootball", b"game", b"steam", b".exe"]
     best_entry = None
     best_fps   = 0.0
     for i in range(arr_cnt):
