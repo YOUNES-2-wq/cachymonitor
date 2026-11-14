@@ -12,7 +12,7 @@ Younes (GitHub `YOUNES-2-wq`, AUR `younes-2`) : gamer, **pas développeur**. Tou
 ## Distribution
 - **AUR** `cachymonitor` (dépôt séparé `ssh://aur@aur.archlinux.org/cachymonitor.git`,
   PKGBUILD qui télécharge l'archive du tag GitHub) — en **1.4.4**.
-- **winget** `YOUNES-2-wq.CachyMonitor` — en **1.4.1** (manifestes dans
+- **winget** `YOUNES-2-wq.CachyMonitor` — en **1.5.0** (1.5.1 soumise) (manifestes dans
   `packaging/winget/manifests`, procédure dans `packaging/winget/README.md`).
 - **Installateur Windows** : `packaging/windows/build.ps1` (PyInstaller en `--onedir`,
   puis Inno Setup). Le mode `--onefile` a été abandonné en 1.4.1 : son bootloader
@@ -73,6 +73,17 @@ Pièges vérifiés, à ne pas réintroduire :
 `build.ps1` télécharge PresentMon et vérifie SHA256 + signature Intel. Sur le PC de
 Younes, `python` n'est que l'alias du Microsoft Store : le vrai est `py`. Avant le build :
 `function global:python { & py @args }`.
+
+## Fréquence CPU et NVML sous Windows (1.5.1, 14/11/2026)
+- Fréquence CPU réelle sans Afterburner : `_PdhCpuFreq` lit le compteur PDH
+  « % Processor Performance » (`PdhAddEnglishCounterW`, `PDH_FMT_NOCAP100`) multiplié
+  par la fréquence de base. psutil ne donne que la base, figée. Afterburner en secours.
+- GPU NVIDIA : NVML d'abord, chargé par chemin complet `System32\nvml.dll` (contre le
+  détournement de DLL), `nvidia-smi` en secours. Premier appel ~1,3 s (init), puis ~0 ms.
+- VRAM par `nvmlDeviceGetMemoryInfo_v2` (identique à nvidia-smi ; la v1 compte en plus
+  la mémoire réservée par le pilote), repli v1. Touche aussi Linux et Flatpak.
+- Validé sur le PC de Younes, avec et sans Afterburner. Seules la température et la
+  conso CPU dépendent encore d'Afterburner (étape 1.7.0).
 
 ## Reste à faire
 - Faux positifs antivirus : signalement Microsoft **envoyé le 03/10/2026** (WDSI, ID

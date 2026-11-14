@@ -59,7 +59,7 @@ from PySide6.QtWidgets import (
     QPushButton, QMessageBox,
 )
 
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.5.1"
 
 IS_WINDOWS = sys.platform.startswith("win")
 
@@ -886,12 +886,95 @@ def _temp_from_acpi():
     return plausible_temp(raw / 10.0 - 273.15) if raw is not None else None
 
 
+class _PdhCpuFreq:
+    """Fréquence CPU réelle via les compteurs de performance Windows (PDH).
+
+    C'est le calcul du Gestionnaire des tâches : fréquence de base × « % de
+    performance du processeur » / 100, ce pourcentage dépassant 100 en boost.
+    Aucun droit admin ni pilote requis. Les noms de compteurs sont traduits
+    selon la langue de Windows : PdhAddEnglishCounterW accepte les noms
+    anglais quelle que soit la langue.
+
+    Le pourcentage est une moyenne entre deux relevés : le tout premier appel
+    ne donne rien, l'appelant garde alors sa source de secours.
+    """
+
+    PDH_FMT_DOUBLE = 0x00000200
+    PDH_FMT_NOCAP100 = 0x00008000   # sans lui, le boost serait plafonné à 100 %
+    PERF = r"\Processor Information(_Total)\% Processor Performance"
+    BASE = r"\Processor Information(_Total)\Processor Frequency"
+
+    def __init__(self):
+        self._pdh = None        # None = pas encore essayé, False = indisponible
+        self._query = self._perf = self._base = None
+
+    def _open(self):
+        import ctypes
+        H = ctypes.c_void_p
+        try:
+            pdh = ctypes.WinDLL("pdh.dll")
+        except OSError:
+            return False
+
+        class Fmt(ctypes.Structure):
+            # Le second champ est une union (LONG / double / ...) alignée sur
+            # 8 octets ; seul le double nous intéresse.
+            _fields_ = [("CStatus", ctypes.c_ulong), ("doubleValue", ctypes.c_double)]
+
+        # Types déclarés partout : sans eux ctypes tronque les handles 64 bits
+        # (bug n°3, le crash ACCESS_VIOLATION).
+        pdh.PdhOpenQueryW.argtypes = [ctypes.c_wchar_p, ctypes.c_size_t, ctypes.POINTER(H)]
+        pdh.PdhAddEnglishCounterW.argtypes = [H, ctypes.c_wchar_p, ctypes.c_size_t,
+                                              ctypes.POINTER(H)]
+        pdh.PdhCollectQueryData.argtypes = [H]
+        pdh.PdhGetFormattedCounterValue.argtypes = [H, ctypes.c_ulong, ctypes.c_void_p,
+                                                    ctypes.POINTER(Fmt)]
+        for f in (pdh.PdhOpenQueryW, pdh.PdhAddEnglishCounterW,
+                  pdh.PdhCollectQueryData, pdh.PdhGetFormattedCounterValue):
+            f.restype = ctypes.c_long
+
+        query, perf, base = H(), H(), H()
+        if pdh.PdhOpenQueryW(None, 0, ctypes.byref(query)) != 0:
+            return False
+        if (pdh.PdhAddEnglishCounterW(query, self.PERF, 0, ctypes.byref(perf)) != 0
+                or pdh.PdhAddEnglishCounterW(query, self.BASE, 0, ctypes.byref(base)) != 0):
+            return False
+        pdh.PdhCollectQueryData(query)     # premier relevé, la référence
+        self._fmt = Fmt
+        self._query, self._perf, self._base = query, perf, base
+        return pdh
+
+    def _value(self, counter):
+        import ctypes
+        out = self._fmt()
+        rc = self._pdh.PdhGetFormattedCounterValue(
+            counter, self.PDH_FMT_DOUBLE | self.PDH_FMT_NOCAP100, None, ctypes.byref(out))
+        return out.doubleValue if rc == 0 else None
+
+    def mhz(self):
+        if self._pdh is None:
+            try:
+                self._pdh = self._open()
+            except Exception:
+                self._pdh = False
+        if not self._pdh:
+            return None
+        if self._pdh.PdhCollectQueryData(self._query) != 0:
+            return None
+        perf, base = self._value(self._perf), self._value(self._base)
+        if not perf or not base:
+            return None
+        freq = base * perf / 100.0
+        return freq if 100 < freq < 10000 else None
+
+
 class WindowsCpuReader:
     """Usage CPU (total + par cœur) via psutil, températures via Afterburner.
 
     Windows n'expose pas de capteur thermique lisible sans pilote : la
-    température, la consommation et la fréquence réelle viennent donc de MSI
-    Afterburner, avec des sources de repli quand il n'est pas lancé.
+    température et la consommation viennent donc de MSI Afterburner, avec des
+    sources de repli quand il n'est pas lancé. La fréquence réelle vient des
+    compteurs Windows (_PdhCpuFreq), Afterburner en secours.
     """
 
     # Sources de repli, dans l'ordre de préférence. Toutes passent par HTTP ou
@@ -915,6 +998,7 @@ class WindowsCpuReader:
             pass
         self._temp_cache = None
         self._temp_cache_time = 0.0
+        self._freq = _PdhCpuFreq()
 
     def _temp(self):
         temp = plausible_temp(AB.get("CPU temperature"))
@@ -943,11 +1027,16 @@ class WindowsCpuReader:
         except ImportError:
             cpu_pct, cpu_cores, cpu_freq = 0.0, [], None
 
-        # psutil lit la fréquence *de base* dans le registre, une valeur figée :
-        # celle d'Afterburner est la fréquence réelle, boost compris.
-        boost = AB.get("CPU clock")
-        if boost and 100 < boost < 10000:
-            cpu_freq = boost
+        # psutil lit la fréquence *de base* dans le registre, une valeur figée.
+        # La fréquence réelle, boost compris, vient des compteurs Windows, ou à
+        # défaut d'Afterburner.
+        real = self._freq.mhz()
+        if real is None:
+            boost = AB.get("CPU clock")
+            if boost and 100 < boost < 10000:
+                real = boost
+        if real is not None:
+            cpu_freq = real
 
         return {
             "cpu_pct": cpu_pct,
@@ -1207,21 +1296,45 @@ _nvml_lib = None   # None = pas encore essayé, False = indisponible
 _nvml_handle = None
 
 
-def _nvml_open():
-    """Charge NVML (libnvidia-ml) une seule fois, Linux uniquement.
+def _nvml_paths():
+    """Emplacements de la bibliothèque NVML, dans l'ordre d'essai.
 
-    Sert quand nvidia-smi est absent, typiquement dans un bac à sable Flatpak :
-    l'extension NVIDIA fournit la bibliothèque mais pas le programme.
+    Sous Windows on donne un chemin complet : avec un simple « nvml.dll »,
+    Windows chercherait d'abord dans le dossier courant, où un fichier piégé
+    pourrait se faire passer pour la vraie bibliothèque. Le pilote NVIDIA
+    installe nvml.dll dans System32 ; les anciens pilotes la mettaient dans NVSMI.
+    """
+    if not IS_WINDOWS:
+        return ["libnvidia-ml.so.1"]
+    root = os.environ.get("SystemRoot", r"C:\Windows")
+    return [os.path.join(root, "System32", "nvml.dll"),
+            r"C:\Program Files\NVIDIA Corporation\NVSMI\nvml.dll"]
+
+
+def _nvml_open():
+    """Charge NVML une seule fois.
+
+    Sous Windows c'est la source principale : un appel direct au pilote, sans
+    lancer nvidia-smi à chaque seconde. Sous Linux elle sert quand nvidia-smi
+    est absent, typiquement dans un bac à sable Flatpak : l'extension NVIDIA
+    fournit la bibliothèque mais pas le programme.
     """
     global _nvml_lib, _nvml_handle
     if _nvml_lib is not None:
         return _nvml_lib or None
     _nvml_lib = False
-    if IS_WINDOWS:
-        return None
     import ctypes
+    for path in _nvml_paths():
+        if IS_WINDOWS and not os.path.exists(path):
+            continue
+        try:
+            lib = ctypes.CDLL(path)
+            break
+        except OSError:
+            continue
+    else:
+        return None
     try:
-        lib = ctypes.CDLL("libnvidia-ml.so.1")
         if lib.nvmlInit_v2() != 0:
             return None
         handle = ctypes.c_void_p()
@@ -1247,14 +1360,30 @@ def _gpu_nvidia_nvml():
         _fields_ = [("total", ctypes.c_ulonglong), ("free", ctypes.c_ulonglong),
                     ("used", ctypes.c_ulonglong)]
 
+    class Mem2(ctypes.Structure):
+        _fields_ = [("version", ctypes.c_uint), ("total", ctypes.c_ulonglong),
+                    ("reserved", ctypes.c_ulonglong), ("free", ctypes.c_ulonglong),
+                    ("used", ctypes.c_ulonglong)]
+
     h = _nvml_handle
     name = ctypes.create_string_buffer(96)
-    util, mem = Util(), Mem()
+    util = Util()
     temp, clock, power = ctypes.c_uint(), ctypes.c_uint(), ctypes.c_uint()
     if lib.nvmlDeviceGetName(h, name, 96) != 0:
         return None
     ok_util = lib.nvmlDeviceGetUtilizationRates(h, ctypes.byref(util)) == 0
-    ok_mem = lib.nvmlDeviceGetMemoryInfo(h, ctypes.byref(mem)) == 0
+    # La version 2 retire de « used » la mémoire réservée par le pilote, comme
+    # nvidia-smi (1604 Mio contre 1777 sur une RTX 3060). Les pilotes trop
+    # anciens ne l'ont pas : on retombe alors sur la version 1.
+    mem = Mem2()
+    mem.version = ctypes.sizeof(Mem2) | (2 << 24)
+    try:
+        ok_mem = lib.nvmlDeviceGetMemoryInfo_v2(h, ctypes.byref(mem)) == 0
+    except AttributeError:
+        ok_mem = False
+    if not ok_mem:
+        mem = Mem()
+        ok_mem = lib.nvmlDeviceGetMemoryInfo(h, ctypes.byref(mem)) == 0
     ok_temp = lib.nvmlDeviceGetTemperature(h, 0, ctypes.byref(temp)) == 0  # 0 = cœur GPU
     ok_clock = lib.nvmlDeviceGetClockInfo(h, 0, ctypes.byref(clock)) == 0  # 0 = graphique
     ok_power = lib.nvmlDeviceGetPowerUsage(h, ctypes.byref(power)) == 0    # milliwatts
@@ -1270,8 +1399,16 @@ def _gpu_nvidia_nvml():
 
 
 def _gpu_nvidia():
-    """GPU NVIDIA via nvidia-smi (usage, temp, VRAM, clock, power), sinon NVML."""
-    if not IS_WINDOWS and _nvidia_smi_missing():
+    """GPU NVIDIA (usage, temp, VRAM, clock, power).
+
+    Windows : NVML d'abord, nvidia-smi en secours.
+    Linux : nvidia-smi, ou NVML quand il est absent (Flatpak).
+    """
+    if IS_WINDOWS:
+        data = _gpu_nvidia_nvml()
+        if data:
+            return data
+    elif _nvidia_smi_missing():
         return _gpu_nvidia_nvml()
     query = "name,utilization.gpu,temperature.gpu,memory.used,memory.total,clocks.gr,power.draw"
     try:

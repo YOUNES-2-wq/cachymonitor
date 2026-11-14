@@ -120,17 +120,17 @@ kernel does (where everything can be read from `/sys`). So the app relies on
 
 | To get | You need |
 |---|---|
-| CPU temperature, power draw and real clock speed | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (free) |
+| CPU temperature and power draw | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (free) |
 | FPS and session statistics (1% low, 0.1% low...) | **RivaTuner (RTSS)**, installed with Afterburner. Otherwise **PresentMon**, included in the installer |
-| CPU usage, RAM, processor name | nothing, works everywhere |
-| GPU, VRAM, GPU temperature | nothing on NVIDIA (`nvidia-smi`); Afterburner otherwise |
+| CPU usage, real clock speed, RAM, processor name | nothing, works everywhere (clock speed from a Windows performance counter since 1.5.1) |
+| GPU, VRAM, GPU temperature | nothing on NVIDIA (NVML driver library, then `nvidia-smi`); Afterburner otherwise |
 
 **What to do:** install Afterburner and leave it running (it starts RTSS by itself).
 That's it. There's nothing to configure in CachyMonitor.
 
 **Without Afterburner**, the app still starts and stays usable: CPU, RAM, GPU, VRAM and
-FPS are shown normally. However, CPU temperature, power draw and real clock speed stay
-at `—`. There is a fallback for the temperature only, through
+FPS are shown normally, and so is the real CPU clock speed. However, CPU temperature and
+power draw stay at `—`. There is a fallback for the temperature only, through
 [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
 
 > The numbers come **from the same source as the RivaTuner on-screen display**: the FPS
@@ -265,11 +265,11 @@ One file, two sets of sources: `IS_WINDOWS` switches each reader, and everything
 | Metric          | Linux                                 | Windows 11                                    |
 |-----------------|---------------------------------------|-----------------------------------------------|
 | CPU usage/core  | `/proc/stat`                          | psutil                                        |
-| CPU clock       | `scaling_cur_freq`                    | MSI Afterburner *(real clock, with boost)*    |
+| CPU clock       | `scaling_cur_freq`                    | Windows performance counter, then Afterburner |
 | CPU temperature | hwmon `k10temp` / `coretemp`          | Afterburner, then LibreHardwareMonitor        |
 | CPU power       | —                                     | Afterburner                                   |
 | RAM             | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`               |
-| GPU / VRAM      | `nvidia-smi`, `amdgpu`, `i915`        | `nvidia-smi`, then Afterburner sensors        |
+| GPU / VRAM      | `nvidia-smi`, `amdgpu`, `i915`        | NVML, `nvidia-smi`, then Afterburner sensors  |
 | FPS / session   | **MangoHud** CSV logs                 | **RivaTuner (RTSS)**, sampled every 100 ms; **PresentMon** as a fallback |
 | Controllers     | `/sys/class/input` + `power_supply`   | raw HID *(Sony)*, XInput *(Xbox)*             |
 

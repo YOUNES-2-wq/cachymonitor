@@ -23,8 +23,8 @@ d'étranglement CPU/GPU, thème clair/sombre et interface en français ou en ang
 > **Sous Windows, [MSI Afterburner](https://www.msi.com/Landing/afterburner) reste
 > conseillé.** Il est gratuit et livré avec RivaTuner (RTSS). Sans lui, l'application
 > affiche l'usage CPU, la RAM, le GPU **et les FPS**, grâce à PresentMon d'Intel, inclus
-> depuis la 1.5.0. En revanche, **la température, la consommation et la fréquence réelle
-> du CPU restent vides**. Windows n'expose pas ces capteurs comme le fait le noyau Linux :
+> depuis la 1.5.0. En revanche, **la température et la consommation
+> du CPU restent vides** (la fréquence réelle, elle, s'affiche depuis la 1.5.1). Windows n'expose pas ces capteurs comme le fait le noyau Linux :
 > CachyMonitor lit donc ceux d'Afterburner.
 > [Détails](#prérequis--msi-afterburner-et-rivatuner)
 
@@ -137,17 +137,17 @@ le noyau Linux, où tout se lit dans `/sys`. L'application s'appuie donc sur
 
 | Pour obtenir | Il faut |
 |---|---|
-| Température, consommation et fréquence réelle du CPU | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (gratuit) |
+| Température et consommation du CPU | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (gratuit) |
 | FPS et statistiques de session (1 % low, 0.1 % low…) | **RivaTuner (RTSS)**, installé avec Afterburner. Sinon **PresentMon**, inclus dans l'installateur |
-| Usage CPU, RAM, nom du processeur | rien, ça marche partout |
-| GPU, VRAM, température GPU | rien sur NVIDIA (`nvidia-smi`) ; Afterburner sinon |
+| Usage CPU, fréquence réelle, RAM, nom du processeur | rien, ça marche partout (fréquence lue par un compteur de performance Windows depuis la 1.5.1) |
+| GPU, VRAM, température GPU | rien sur NVIDIA (bibliothèque NVML du pilote, puis `nvidia-smi`) ; Afterburner sinon |
 
 **Ce qu'il faut faire :** installer Afterburner, le laisser tourner (il démarre RTSS
 tout seul), et c'est fini. Aucun réglage à faire dans CachyMonitor.
 
 **Sans Afterburner**, l'application démarre et reste utilisable : usage CPU, RAM, GPU,
-VRAM et FPS s'affichent normalement. En revanche, la température, la consommation et la
-fréquence réelle du CPU restent à `—`. Un repli existe pour la seule température, via
+VRAM, FPS et fréquence réelle du CPU s'affichent normalement. En revanche, la température
+et la consommation du CPU restent à `—`. Un repli existe pour la seule température, via
 [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
 
 > Les chiffres viennent **de la même source que l'OSD de RivaTuner** : le FPS affiché par
@@ -284,11 +284,11 @@ reste (interface, thèmes, langues, calcul des statistiques) est strictement com
 | Métrique       | Linux                                 | Windows 11                                   |
 |----------------|---------------------------------------|----------------------------------------------|
 | CPU usage/cœur | `/proc/stat`                          | psutil                                       |
-| CPU fréquence  | `scaling_cur_freq`                    | MSI Afterburner *(fréquence réelle, boost)*  |
+| CPU fréquence  | `scaling_cur_freq`                    | compteur de performance Windows, puis Afterburner |
 | CPU temp       | hwmon `k10temp` / `coretemp`          | Afterburner, puis LibreHardwareMonitor       |
 | CPU conso      | —                                     | Afterburner                                  |
 | RAM            | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`              |
-| GPU / VRAM     | `nvidia-smi`, `amdgpu`, `i915`        | `nvidia-smi`, puis capteurs Afterburner      |
+| GPU / VRAM     | `nvidia-smi`, `amdgpu`, `i915`        | NVML, `nvidia-smi`, puis capteurs Afterburner |
 | FPS / session  | logs CSV de **MangoHud**              | **RivaTuner (RTSS)**, relevé toutes les 100 ms ; **PresentMon** en secours |
 | Manettes       | `/sys/class/input` + `power_supply`   | HID brut *(Sony)*, XInput *(Xbox)*           |
 
