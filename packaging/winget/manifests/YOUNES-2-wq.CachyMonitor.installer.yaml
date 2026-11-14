@@ -1,28 +1,21 @@
-# Created using wingetcreate 1.12.13.0
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+# Created using wingetcreate 1.28.1.0
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
 
 PackageIdentifier: YOUNES-2-wq.CachyMonitor
-PackageVersion: 1.5.0
+PackageVersion: 1.5.1
 InstallerType: inno
 Scope: user
 InstallModes:
 - interactive
 - silent
 - silentWithProgress
-UpgradeBehavior: install
-# La case « Autoriser PresentMon » de l'installateur ouvre l'invite administrateur
-# de Windows : on la décoche pour qu'une installation silencieuse par winget ne
-# s'interrompe jamais. Elle reste proposée en lançant l'installateur à la main.
 InstallerSwitches:
   Custom: /MERGETASKS="!perfgroup"
-# Inno Setup enregistre sa cle de desinstallation sous AppId + "_is1". C'est ce qui
-# permet a winget de reconnaitre une installation existante et de proposer la mise a
-# jour au lieu d'installer une seconde copie. Ne jamais changer l'AppId.
+UpgradeBehavior: install
 ProductCode: '{61F32A52-2721-4AFB-8D69-CB8DF4E34FAD}_is1'
-ReleaseDate: 2026-11-08
 Installers:
 - Architecture: x64
-  InstallerUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/download/v1.5.0/CachyMonitor-Setup-1.5.0.exe
-  InstallerSha256: 937FED8F33D7856B888115333394950AE226F7BAE3F7CBA6293E32F201366828
+  InstallerUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/download/v1.5.1/CachyMonitor-Setup-1.5.1.exe
+  InstallerSha256: AAD14582177043391B2AD7A1A03497F761D54CCC69FF941A67296DC03A20B330
 ManifestType: installer
-ManifestVersion: 1.12.0
+ManifestVersion: 1.28.0

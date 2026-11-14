@@ -5,9 +5,9 @@ de Windows. Le paquet `YOUNES-2-wq.CachyMonitor` est **accepté dans le catalogu
 officiel** depuis la 1.3.2
 ([microsoft/winget-pkgs#419610](https://github.com/microsoft/winget-pkgs/pull/419610),
 fusionnée le 19/09/2026) : l'installation tient en une ligne. La 1.4.1 a suivi
-([#445910](https://github.com/microsoft/winget-pkgs/pull/445910)) ; la mise à jour vers
-la 1.5.0 est soumise dans
-[microsoft/winget-pkgs#474985](https://github.com/microsoft/winget-pkgs/pull/474985).
+([#445910](https://github.com/microsoft/winget-pkgs/pull/445910)), la 1.5.0
+aussi ([#474985](https://github.com/microsoft/winget-pkgs/pull/474985)) ; la 1.5.1 est
+soumise dans [microsoft/winget-pkgs#480160](https://github.com/microsoft/winget-pkgs/pull/480160).
 
 ```powershell
 winget install cachymonitor

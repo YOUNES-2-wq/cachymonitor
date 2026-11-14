@@ -1,8 +1,8 @@
-# Created using wingetcreate 1.12.13.0
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+# Created using wingetcreate 1.28.1.0
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
 
 PackageIdentifier: YOUNES-2-wq.CachyMonitor
-PackageVersion: 1.5.0
+PackageVersion: 1.5.1
 PackageLocale: fr-FR
 Publisher: YOUNES-2-wq
 PublisherUrl: https://github.com/YOUNES-2-wq
@@ -29,7 +29,6 @@ Description: |-
 
   Le même fichier fonctionne aussi sous Linux, où les mesures viennent de /proc, /sys
   et des journaux de MangoHud.
-ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.5.0
 Moniker: cachymonitor
 Tags:
 - fps
@@ -43,4 +42,4 @@ Tags:
 - system-monitor
 - temperature
 ManifestType: defaultLocale
-ManifestVersion: 1.12.0
+ManifestVersion: 1.28.0
