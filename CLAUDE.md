@@ -13,11 +13,13 @@ Le reste vit dans le dossier `cachymon/` (aucune logique changée, lignes dépla
 `game` (statistiques + MangoHud), `mangohud_conf`, `game_windows` (RTSS, PresentMon),
 `sampler`, `widgets`, `debug`.
 Pièges : une globale réécrite (`global X`) doit rester dans le module qui la définit, et
-`PRESENTMON_STATE` se lit par `game_windows.PRESENTMON_STATE`, jamais par `from ... import`.
-**Non vérifié sur Windows** : le découpage a été testé sous Linux seulement (appli lancée,
-`ruff` sans nom indéfini, tests) ; tester l'installateur Windows avant de publier.
-`packaging/windows/build.ps1` (PyInstaller suit les imports) et le PKGBUILD AUR (copie de
-`cachymon/*.py`, déjà modifié en local, pas poussé) sont à vérifier à la prochaine release.
+`PRESENTMON_STATE` se lit par `presentmon_state()` (dans `game_windows`), jamais par
+`from ... import PRESENTMON_STATE`.
+Publié en **1.5.2** (Linux seulement : release GitHub non « latest », AUR ; pas d'installateur
+Windows). **Non vérifié sur Windows** : testé sous Linux seulement. Le numéro 1.6.0 reste
+réservé au plan Windows et embarquera ce découpage. **Lire `docs/NOTE-DECOUPAGE-1.5.2.md`**
+(carte des modules, changements de comportement, liste de vérifications Windows, dont
+`build.ps1` et PyInstaller).
 
 ## Contrôles avant une release
 - `ruff check .` (réglages dans `pyproject.toml`) et `python -m pytest -q` : doivent passer.
