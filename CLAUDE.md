@@ -16,8 +16,8 @@ Pièges : une globale réécrite (`global X`) doit rester dans le module qui la 
 `PRESENTMON_STATE` se lit par `presentmon_state()` (dans `game_windows`), jamais par
 `from ... import PRESENTMON_STATE`.
 Publié en **1.5.2** (Linux seulement : release GitHub non « latest », AUR ; pas d'installateur
-Windows). **Non vérifié sur Windows** : testé sous Linux seulement. Le numéro 1.6.0 reste
-réservé au plan Windows et embarquera ce découpage. **Lire `docs/NOTE-DECOUPAGE-1.5.2.md`**
+Windows). Vérifié sous Windows le 2026-11-14 (ruff, tests, capteurs, exe PyInstaller) ;
+première version Windows découpée = **1.6.0**, qui inverse aussi la priorité des FPS. **Lire `docs/NOTE-DECOUPAGE-1.5.2.md`**
 (carte des modules, changements de comportement, liste de vérifications Windows, dont
 `build.ps1` et PyInstaller).
 
@@ -36,7 +36,7 @@ Younes (GitHub `YOUNES-2-wq`, AUR `younes-2`) : gamer, **pas développeur**. Tou
 ## Distribution
 - **AUR** `cachymonitor` (dépôt séparé `ssh://aur@aur.archlinux.org/cachymonitor.git`,
   PKGBUILD qui télécharge l'archive du tag GitHub) — en **1.5.2**.
-- **winget** `YOUNES-2-wq.CachyMonitor` — en **1.5.0** (1.5.1 soumise) (manifestes dans
+- **winget** `YOUNES-2-wq.CachyMonitor` — en **1.5.1** (manifestes dans
   `packaging/winget/manifests`, procédure dans `packaging/winget/README.md`).
 - **Installateur Windows** : `packaging/windows/build.ps1` (PyInstaller en `--onedir`,
   puis Inno Setup). Le mode `--onefile` a été abandonné en 1.4.1 : son bootloader
@@ -74,8 +74,9 @@ le dit explicitement — ne jamais le présenter comme testé.
 
 ## PresentMon sous Windows (1.5.0, 08/11/2026)
 FPS sans Afterburner : `PresentMonGameReader` lance PresentMon 2.6.0 (Intel, MIT) en
-sous-processus et lit son CSV sur stdout. `WindowsGameReader` montre RivaTuner s'il
-mesure en direct, sinon PresentMon. Plan complet de sortie d'Afterburner : 1.5.1
+sous-processus et lit son CSV sur stdout. `WindowsGameReader` montre PresentMon s'il
+mesure en direct, sinon RivaTuner (ordre inversé en 1.6.0 ; 1.5.x : RivaTuner d'abord,
+test `tests/test_priorite_windows.py`). Plan complet de sortie d'Afterburner : 1.5.1
 fréquence CPU + NVML, 1.6.0 priorité inversée, 1.7.0 LibreHardwareMonitor + PawnIO,
 2.0.0 retrait d'Afterburner — une étape par version, testée sur le PC de Younes.
 

@@ -241,10 +241,11 @@ class _GamePoller(QThread):
 # dans le groupe « Utilisateurs du journal de performances » (S-1-5-32-559),
 # ce que propose l'installateur.
 #
-# En 1.5.0, c'est une source de SECOURS : RivaTuner reste prioritaire, et
-# PresentMon prend le relais quand il ne donne rien — Afterburner absent, ou jeu
-# qui n'est plus au premier plan (Afterburner ne publie le FPS que de la
-# fenêtre active).
+# En 1.5.x, c'était une source de secours. Depuis 1.6.0, c'est la source
+# PRINCIPALE : PresentMon suit le jeu par son process, même quand il n'est plus
+# au premier plan (Afterburner ne publie le FPS que de la fenêtre active).
+# RivaTuner prend le relais quand PresentMon ne mesure rien : PresentMon
+# absent ou refusé (compte hors du groupe), ou jeu en fenêtre classique.
 
 PRESENTMON_EXE = "PresentMon.exe"
 PRESENTMON_SESSION = "CachyMonitor"
@@ -660,11 +661,11 @@ def _exe_to_game_name(exe):
 
 
 class WindowsGameReader:
-    """RivaTuner d'abord, PresentMon en secours (1.5.0).
+    """PresentMon d'abord, RivaTuner en secours (1.6.0 ; l'inverse en 1.5.x).
 
     Les deux tournent en parallèle, chacun avec sa propre session. On montre
-    RivaTuner tant qu'il mesure un jeu en direct ; sinon PresentMon s'il en
-    mesure un ; sinon la dernière session terminée, RivaTuner en priorité.
+    PresentMon tant qu'il mesure un jeu en direct ; sinon RivaTuner s'il en
+    mesure un ; sinon la dernière session terminée, PresentMon en priorité.
     """
 
     def __init__(self):
@@ -683,15 +684,15 @@ class WindowsGameReader:
             self._pm.stop()
 
     def sample(self):
+        pm = self._pm.sample() if self._pm is not None else None
+        if pm is not None and pm["live"]:
+            return pm
         rtss = self._rtss.sample()
         if rtss is not None:
             rtss.setdefault("source", "RivaTuner")
             if rtss["live"]:
                 return rtss
-        pm = self._pm.sample() if self._pm is not None else None
-        if pm is not None and pm["live"]:
-            return pm
-        return rtss or pm
+        return pm or rtss
 
 
 def make_game_reader():

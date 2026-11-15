@@ -121,7 +121,7 @@ kernel does (where everything can be read from `/sys`). So the app relies on
 | To get | You need |
 |---|---|
 | CPU temperature and power draw | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (free) |
-| FPS and session statistics (1% low, 0.1% low...) | **RivaTuner (RTSS)**, installed with Afterburner. Otherwise **PresentMon**, included in the installer |
+| FPS and session statistics (1% low, 0.1% low...) | **PresentMon**, included in the installer. Otherwise **RivaTuner (RTSS)**, installed with Afterburner |
 | CPU usage, real clock speed, RAM, processor name | nothing, works everywhere (clock speed from a Windows performance counter since 1.5.1) |
 | GPU, VRAM, GPU temperature | nothing on NVIDIA (NVML driver library, then `nvidia-smi`); Afterburner otherwise |
 
@@ -143,9 +143,10 @@ Intel's tool (MIT license) that measures every displayed frame through Windows e
 tracing. It doesn't inject anything into the game, and it's safe with anti-cheats:
 tested on eFootball.
 
-- **RivaTuner stays first.** PresentMon takes over when RivaTuner measures nothing:
-  Afterburner closed, or the game is no longer the active window (Afterburner only
-  reports the FPS of the foreground game). The status line shows which source is used.
+- **PresentMon comes first since 1.6.0.** It keeps following the game even when it's
+  no longer the active window (Afterburner only reports the FPS of the foreground game).
+  RivaTuner takes over when PresentMon measures nothing, for example a game in a regular
+  window. The status line shows which source is used.
 - **An installer checkbox**, "Allow PresentMon", adds your account to the Windows
   "Performance Log Users" group. Windows then asks for administrator rights, and you
   need to sign out and back in once. Without this group, PresentMon isn't allowed to
@@ -270,7 +271,7 @@ One file, two sets of sources: `IS_WINDOWS` switches each reader, and everything
 | CPU power       | —                                     | Afterburner                                   |
 | RAM             | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`               |
 | GPU / VRAM      | `nvidia-smi`, `amdgpu`, `i915`        | NVML, `nvidia-smi`, then Afterburner sensors  |
-| FPS / session   | **MangoHud** CSV logs                 | **RivaTuner (RTSS)**, sampled every 100 ms; **PresentMon** as a fallback |
+| FPS / session   | **MangoHud** CSV logs                 | **PresentMon**; **RivaTuner (RTSS)** as a fallback, sampled every 100 ms |
 | Controllers     | `/sys/class/input` + `power_supply`   | raw HID *(Sony)*, XInput *(Xbox)*             |
 
 > Why 100 ms on Windows: the "lows" need a lot of data points. At one sample per second,
@@ -279,8 +280,8 @@ One file, two sets of sources: `IS_WINDOWS` switches each reader, and everything
 
 ## Enable FPS on Linux (MangoHud)
 
-> On Windows there's nothing to configure: **RivaTuner (RTSS)** measures FPS as soon as
-> Afterburner is running, and **PresentMon** takes over otherwise.
+> On Windows there's nothing to configure: **PresentMon**, included in the installer,
+> measures FPS, and **RivaTuner (RTSS)** takes over when it measures nothing.
 
 FPS comes from MangoHud's **CSV logs**, not from the on-screen overlay: having the
 MangoHud HUD visible in game **is not enough**, MangoHud must also *record* a log (which

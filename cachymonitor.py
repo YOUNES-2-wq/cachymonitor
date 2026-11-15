@@ -59,7 +59,7 @@ from cachymon.theme import DEFAULT_THEME, THEME_LABELS, THEME_MODES, col, resolv
 from cachymon.widgets import ControllerPanel, GamePanel, GaugeCard
 
 
-APP_VERSION = "1.5.2"
+APP_VERSION = "1.6.0"
 
 
 # ----------------------------------------------------------------------------- #
