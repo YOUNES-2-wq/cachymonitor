@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
 
 PackageIdentifier: YOUNES-2-wq.CachyMonitor
-PackageVersion: 1.5.1
+PackageVersion: 1.6.0
 PackageLocale: fr-FR
 Publisher: YOUNES-2-wq
 PublisherUrl: https://github.com/YOUNES-2-wq
@@ -41,6 +41,6 @@ Tags:
 - rtss
 - system-monitor
 - temperature
-ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.5.1
+ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.6.0
 ManifestType: defaultLocale
 ManifestVersion: 1.28.0
