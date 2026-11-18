@@ -103,6 +103,22 @@ def _powershell(command, timeout=3):
         return ""
 
 
+def app_settings():
+    """Réglages mémorisés de l'appli (registre sous Windows). Un seul endroit
+    pour le couple organisation/appli : le changer ici le change partout."""
+    from PySide6.QtCore import QSettings   # import local : config reste sans Qt
+    return QSettings("CachyMonitor", "CachyMonitor")
+
+
+def settings_int(s, key):
+    """Entier positif mémorisé dans QSettings (texte selon le backend), 0 si
+    absent ou illisible. Un seul endroit pour les compteurs de l'appli."""
+    try:
+        return max(0, int(s.value(key, 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _as_bool(v):
     """QSettings rend les booléens en texte selon le backend."""
     if isinstance(v, str):

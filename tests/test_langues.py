@@ -33,3 +33,12 @@ def test_tr_traduit_en_francais():
 def test_conf_mangohud_garde_la_derniere_valeur():
     v = _conf_values(["# commentaire", "fps_limit=60", "autostart_log=0", "autostart_log=3600", ""])
     assert v["autostart_log"] == "3600" and v["fps_limit"] == "60"
+
+
+def test_libelles_des_listes_traduits():
+    # Les listes Thème et Langue passent par tr() : « System » doit exister en français.
+    from cachymon.theme import THEME_LABELS
+    for libelle in (*THEME_LABELS.values(), *i18n.LANG_LABELS.values()):
+        if libelle in ("English", "Français"):
+            continue        # noms de langues, jamais traduits
+        assert libelle in i18n.TRANSLATIONS["fr"], libelle

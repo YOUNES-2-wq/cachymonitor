@@ -20,3 +20,8 @@ scripts/*_result.txt
 io.github.*.yml
 .pytest_cache/
 .ruff_cache/
+
+# Copies locales pour lancer depuis les sources (posées par l'installateur en temps
+# normal, téléchargées et vérifiées par build.ps1) : jamais dans le dépôt.
+/PresentMon.exe
+/AMDFamily17.bin

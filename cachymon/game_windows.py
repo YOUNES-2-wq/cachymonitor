@@ -290,6 +290,12 @@ def find_presentmon():
     CACHYMONITOR_PRESENTMON permet de tester une autre copie sans réinstaller.
     """
     env = os.environ.get("CACHYMONITOR_PRESENTMON")
+    from .pawnio import is_admin     # import local : évite un cycle au chargement
+    if is_admin():
+        # Une variable d'environnement peut être posée par n'importe quel
+        # programme (HKCU\Environment) : en administrateur, PresentMon ne vient
+        # que du dossier de l'appli.
+        env = None
     candidates = [env] if env else []
     if getattr(sys, "frozen", False):
         candidates.append(os.path.join(os.path.dirname(sys.executable), PRESENTMON_EXE))

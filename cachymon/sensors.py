@@ -10,6 +10,7 @@ import subprocess
 from .config import IS_WINDOWS, _NO_WINDOW, _num, _powershell, _read_first, plausible_temp
 from .debug import debug_exc
 from .i18n import tr
+from .pawnio import PAWNIO, cpu_registry
 from .winshm import AB
 
 
@@ -286,11 +287,12 @@ class _PdhCpuFreq:
 
 
 class WindowsCpuReader:
-    """Usage CPU (total + par cœur) via psutil, températures via Afterburner.
+    """Usage CPU (total + par cœur) via psutil, températures via PawnIO.
 
     Windows n'expose pas de capteur thermique lisible sans pilote : la
-    température et la consommation viennent donc de MSI Afterburner, avec des
-    sources de repli quand il n'est pas lancé. La fréquence réelle vient des
+    température et la consommation viennent du pilote PawnIO (Ryzen, droits
+    administrateur), sinon de MSI Afterburner, avec des sources de repli
+    quand il n'est pas lancé. La fréquence réelle vient des
     compteurs Windows (_PdhCpuFreq), Afterburner en secours.
     """
 
@@ -318,7 +320,18 @@ class WindowsCpuReader:
         self._freq = _PdhCpuFreq()
 
     def _temp(self):
+        # PawnIO d'abord (1.7.0) : lu directement dans le processeur, sans
+        # logiciel tiers. Il faut les droits administrateur et un Ryzen.
+        temp = plausible_temp(PAWNIO.temp())
+        if temp is not None:
+            return temp
+        # PawnIO ne répond plus depuis plus de 5 s (pause passagère couverte par
+        # sa dernière valeur) : Afterburner prend le relais plutôt que « — ».
+        # Seulement lui, pas les replis lents par PowerShell, ni pendant que
+        # PawnIO attend un nouvel essai d'ouverture (pilote pas encore prêt).
         temp = plausible_temp(AB.get("CPU temperature"))
+        if PAWNIO.owns_cpu_sensor():
+            return temp
         if temp is not None:
             return temp
 
@@ -360,8 +373,17 @@ class WindowsCpuReader:
             "cpu_cores": cpu_cores,
             "cpu_freq": cpu_freq,
             "cpu_temp": self._temp(),
-            "cpu_power": AB.get("CPU power"),
+            "cpu_power": self._power(),
         }
+
+    @staticmethod
+    def _power():
+        # Même règle que la température : PawnIO tant qu'il répond (un raté
+        # passager est couvert par sa dernière valeur pendant 5 s), sinon
+        # Afterburner. Seul le tout premier relevé, qui amorce le compteur
+        # d'énergie de PawnIO, vient d'Afterburner.
+        watts = PAWNIO.power()
+        return watts if watts is not None else AB.get("CPU power")
 
 
 def make_cpu_reader():
@@ -413,17 +435,8 @@ def read_cpu_name():
     if IS_WINDOWS:
         # Le registre répond instantanément, contrairement à WMI — et wmic a été
         # retiré de Windows 11 24H2.
-        try:
-            import winreg
-            key = winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE,
-                r"HARDWARE\DESCRIPTION\System\CentralProcessor\0",
-            )
-            name, _ = winreg.QueryValueEx(key, "ProcessorNameString")
-            winreg.CloseKey(key)
-            return _clean_cpu(name)
-        except Exception:
-            return "CPU"
+        name = cpu_registry("ProcessorNameString")    # toujours du texte (_hklm)
+        return _clean_cpu(name) if name else "CPU"
     try:
         with open("/proc/cpuinfo") as f:
             for line in f:

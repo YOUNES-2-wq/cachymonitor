@@ -48,18 +48,40 @@ import time
 # quand Python est lance en mode isole (-I) ou via un lien symbolique.
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 
-from PySide6.QtCore import Qt, QSettings
-from PySide6.QtGui import QColor, QIcon, QPalette
-from PySide6.QtWidgets import QApplication, QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, QCheckBox, QSpinBox, QComboBox, QToolButton, QListView
-from cachymon.config import DEFAULT_FPS_TARGET, DEFAULT_INTERVAL_MS, IS_WINDOWS, _as_bool, asset_dir
-from cachymon.i18n import DEFAULT_LANG, LANG_LABELS, LANG_MODES, set_language, tr
-from cachymon.sampler import Sampler
-from cachymon.sensors import read_cpu_name, read_ram_name
-from cachymon.theme import DEFAULT_THEME, THEME_LABELS, THEME_MODES, col, resolve_theme, set_palette, temp_role
-from cachymon.widgets import ControllerPanel, GamePanel, GaugeCard
+# Avant tout import de Qt ou de module de mesure : dans la copie relancée en
+# administrateur pour PawnIO, l'environnement hérité de l'utilisateur est
+# remplacé avant que la moindre bibliothèque ne soit chargée ni la moindre
+# variable lue (voir cachymon/elevation.py). Ces modules n'importent pas Qt.
+from cachymon.elevation import (BUSY, DUPLICATE_ADMIN, RELAUNCH_FAILED, STARTED,  # noqa: E402
+                                PENDING_KEY as RELAUNCH_PENDING_KEY,
+                                confirm_elevated_start, elevated_copy, harden_environment,
+                                hold_admin_instance, qt_arguments, relaunch_elevated)
+if __name__ == "__main__":
+    # Lancement de l'appli seulement (l'exe compilé exécute ce fichier comme
+    # __main__) : un simple import, par les tests, ne touche ni à l'environnement
+    # ni au dossier courant du process qui importe.
+    harden_environment()
+    # Process durci : signale tout de suite qu'il tourne (une seule copie admin).
+    hold_admin_instance()
+
+from PySide6.QtCore import Qt, QTimer  # noqa: E402
+from PySide6.QtGui import QColor, QIcon, QPalette  # noqa: E402
+from PySide6.QtWidgets import QApplication, QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, QCheckBox, QSpinBox, QComboBox, QToolButton, QListView, QMessageBox  # noqa: E402
+from cachymon.config import DEFAULT_FPS_TARGET, DEFAULT_INTERVAL_MS, IS_WINDOWS, _as_bool, app_settings, asset_dir  # noqa: E402
+from cachymon.pawnio import (PAWNIO, elevation_blocker, env_hardened, is_admin,  # noqa: E402
+                             SETTING_KEY as PAWNIO_SETTING,
+                             setting_enabled as pawnio_setting_enabled)
+from cachymon.debug import unavailable as debug_unavailable  # noqa: E402
+from cachymon.i18n import DEFAULT_LANG, LANG_LABELS, LANG_MODES, set_language, tr  # noqa: E402
+from cachymon.sampler import Sampler  # noqa: E402
+from cachymon.sensors import read_cpu_name, read_ram_name  # noqa: E402
+from cachymon.theme import DEFAULT_THEME, THEME_LABELS, THEME_MODES, col, resolve_theme, set_palette, temp_role  # noqa: E402
+from cachymon.widgets import ControllerPanel, GamePanel, GaugeCard  # noqa: E402
 
 
-APP_VERSION = "1.6.0"
+APP_VERSION = "1.7.0"
+APP_AUTHOR = "YOUNES-2-wq"
+APP_URL = "https://github.com/YOUNES-2-wq/cachymonitor"
 
 
 # ----------------------------------------------------------------------------- #
@@ -153,6 +175,11 @@ class MainWindow(QWidget):
 
         self.status = QLabel(tr("Starting…"))
         self.started = False   # passe à True au 1er échantillon (statut réel)
+        self._start_confirmed = False  # voir on_sample (compteur de plantages)
+        # Ouverture de PawnIO jugée une seule fois, après la première tentative
+        # (_check_pawnio_started).
+        self._pawnio_checked = False
+
         self.status.setObjectName("status")
         root.addWidget(self.status)
 
@@ -223,6 +250,12 @@ class MainWindow(QWidget):
         self.l_theme = QLabel(tr("Theme"))
         self.l_lang = QLabel(tr("Language"))
 
+        self.about_button = QToolButton()
+        self.about_button.setObjectName("aboutButton")
+        self.about_button.setCursor(Qt.PointingHandCursor)
+        self.about_button.setText(tr("About"))
+        self.about_button.clicked.connect(self._show_about)
+
         grid.addWidget(self.l_interval, 0, 0)
         grid.addWidget(self.interval, 0, 1)
         grid.addWidget(self.l_fps, 0, 2)
@@ -231,11 +264,109 @@ class MainWindow(QWidget):
         grid.addWidget(self.theme, 1, 1)
         grid.addWidget(self.l_lang, 1, 2)
         grid.addWidget(self.lang, 1, 3)
-        grid.addWidget(self.ontop, 2, 0, 1, 4)
+        grid.addWidget(self.ontop, 2, 0, 1, 3)
+        grid.addWidget(self.about_button, 2, 3)
+
+        # Windows : mode administrateur pour la température CPU (PawnIO, 1.7.0).
+        # Décoché par défaut ; lu au démarrage suivant par elevation.py.
+        self.pawnio_box = None
+        if IS_WINDOWS:
+            self.pawnio_box = QCheckBox()
+            self.pawnio_box.toggled.connect(self._toggle_pawnio)
+            grid.addWidget(self.pawnio_box, 3, 0, 1, 4)
         grid.setColumnStretch(4, 1)
 
     def _toggle_options(self, shown):
         self.options.setVisible(shown)
+        if shown and self.pawnio_box is not None:
+            # PawnIO a pu être installé (ou retiré, ou le module remplacé) depuis
+            # le démarrage : la case est réévaluée à chaque ouverture. Coût
+            # négligeable (registre et empreinte d'un fichier de 10 Ko).
+            elevation_blocker.cache_clear()
+            self._pawnio_retext()
+
+    def _pawnio_retext(self):
+        """Texte et état de la case PawnIO. Grisée (avec la raison en infobulle)
+        quand le mode administrateur n'apporterait rien ou serait imprudent ;
+        toujours décochable si elle a été cochée."""
+        box = self.pawnio_box
+        if box is None:
+            return
+        box.setText(tr("CPU temperature via PawnIO (asks for administrator rights at launch)"))
+        if self.options.isHidden():
+            # État et infobulle calculés à l'ouverture des Options (_toggle_options) :
+            # pas de lecture du registre ni d'empreinte du module au démarrage.
+            return
+        blocker = elevation_blocker()     # en cache (pawnio.py)
+        box.setEnabled(blocker is None or box.isChecked())
+        box.setToolTip(tr(blocker) if blocker else tr(
+            "Reads the CPU temperature and power without MSI Afterburner. Windows will ask "
+            "for confirmation (UAC) each time CachyMonitor starts. Takes effect at the next "
+            "launch."))
+
+    def _toggle_pawnio(self, on):
+        settings = app_settings()
+        settings.setValue(PAWNIO_SETTING, on)
+        # Nouveau choix : les plantages d'avant ne comptent plus.
+        settings.setValue(RELAUNCH_PENDING_KEY, 0)
+        self._pawnio_retext()
+        if not on and elevated_copy():
+            confirm_elevated_start()    # plus rien à attendre : pas un plantage
+            # Copie relancée pour PawnIO : le prochain démarrage sera sans droits.
+            QMessageBox.information(self, "CachyMonitor", tr(
+                "PawnIO is turned off. CachyMonitor will start without "
+                "administrator rights next time."))
+        elif on and elevation_blocker() is None:
+            # Cocher (ou décocher) ne change rien à la session en cours : l'élévation
+            # et l'ouverture du pilote se décident au démarrage.
+            QMessageBox.information(self, "CachyMonitor",
+                                    tr("This takes effect the next time CachyMonitor starts."))
+
+    def _show_about(self):
+        """Fenêtre « À propos » : version, description, lien du projet, et de quoi
+        identifier l'installation quand quelqu'un signale un bug."""
+        import platform
+        from PySide6 import __version__ as pyside_version
+
+        system = "%s %s" % (platform.system(), platform.release())
+        if IS_WINDOWS:
+            # Avant Python 3.12, platform.release() dit « 10 » sur Windows 11 :
+            # le numéro de build tranche (22000 et plus = Windows 11).
+            build = sys.getwindowsversion().build
+            system = "Windows %s (build %d)" % ("11" if build >= 22000 else
+                                                platform.release(), build)
+        lines = [
+            "<h3>CachyMonitor</h3>",
+            "<p><b>%s</b></p>" % tr("Version {version}").format(version=APP_VERSION),
+            "<p>%s</p>" % tr("Lightweight gaming system monitor for Linux and Windows 11: "
+                             "CPU, GPU, RAM, VRAM, temperatures, FPS and controller battery."),
+            "<p>%s</p>" % tr("Made by {author}, free and open source (MIT license).")
+            .format(author=APP_AUTHOR),
+            "<p>%s<br>" % tr("Source code, updates and bug reports:"),
+        ]
+        # Un lien cliqué depuis un process administrateur ouvrirait le navigateur
+        # en administrateur : dans ce cas, l'adresse est seulement sélectionnable.
+        elevated = IS_WINDOWS and is_admin()
+        lines.append(APP_URL if elevated else '<a href="%s">%s</a>' % (APP_URL, APP_URL))
+        lines.append("</p><p style='color:%s; font-size:11px;'>%s<br>Python %s · Qt %s"
+                     % (col("muted"), tr("System: {value}").format(value=system),
+                        platform.python_version(), pyside_version))
+        if IS_WINDOWS:
+            lines.append("<br>" + tr("Administrator mode: {value}").format(
+                value=tr("yes") if elevated else tr("no")))
+        lines.append("</p>")
+
+        box = QMessageBox(self)
+        box.setWindowTitle(tr("About CachyMonitor"))
+        box.setTextFormat(Qt.RichText)
+        box.setText("".join(lines))
+        box.setTextInteractionFlags(Qt.TextSelectableByMouse if elevated
+                                    else Qt.TextBrowserInteraction)
+        icon = self.windowIcon()
+        if not icon.isNull():
+            box.setIconPixmap(icon.pixmap(64, 64))
+        box.setStandardButtons(QMessageBox.Ok)
+        box.exec()
 
     # -- langue ------------------------------------------------------------- #
     def _set_language(self, _index):
@@ -259,6 +390,8 @@ class MainWindow(QWidget):
         self.l_theme.setText(tr("Theme"))
         self.l_lang.setText(tr("Language"))
         self.ontop.setText(tr("Always on top"))
+        self.about_button.setText(tr("About"))
+        self._pawnio_retext()
         self.theme.setToolTip(tr("« System » follows the desktop light/dark setting"))
         self.lang.setToolTip(tr("« System » follows the desktop language"))
 
@@ -306,7 +439,55 @@ class MainWindow(QWidget):
         self.setWindowFlag(flag, on)
         self.show()
 
+    def _check_pawnio_started(self):
+        """Une seule fois, après la première tentative d'ouverture de PawnIO : si
+        l'appli a été relancée en administrateur pour PawnIO et qu'il ne s'est pas
+        ouvert, le dire. Cause durable (processeur refusé, module abîmé, pilote
+        absent ou trop ancien) : la case est décochée, sinon l'UAC reviendrait à
+        chaque lancement pour rien. Cause passagère (pilote qui ne répond pas,
+        verrou tenu par un autre logiciel) : la case reste, Afterburner reprend."""
+        if not env_hardened() or self.pawnio_box is None:
+            self._pawnio_checked = True     # rien à surveiller
+            return
+        if not PAWNIO.tried():
+            return
+        self._pawnio_checked = True
+        reason = PAWNIO.failure_reason()
+        if reason is None or not self.pawnio_box.isChecked():
+            return
+        if reason in PAWNIO.TRANSIENT:
+            # Affiché après ce relevé, pas pendant : la boîte modale traiterait les
+            # relevés suivants avant que celui-ci ne soit fini (valeurs à rebours).
+            text = tr(PAWNIO_TRANSIENT_MESSAGE)
+            QTimer.singleShot(0, lambda: QMessageBox.information(self, "CachyMonitor", text))
+        else:
+            self._turn_pawnio_off(reason)
+
+    def _turn_pawnio_off(self, reason):
+        """Décoche la case PawnIO et dit pourquoi."""
+        box = self.pawnio_box
+        box.blockSignals(True)
+        box.setChecked(False)
+        box.blockSignals(False)
+        app_settings().setValue(PAWNIO_SETTING, False)
+        self._pawnio_retext()
+        text = tr(PAWNIO_FAILURE_MESSAGES[reason])
+        QTimer.singleShot(0, lambda: QMessageBox.warning(self, "CachyMonitor", text))
+
     def on_sample(self, d):
+        if not self._start_confirmed and (not env_hardened() or PAWNIO.tried()
+                                          or self.pawnio_box is None
+                                          or not self.pawnio_box.isChecked()):
+            # Copie élevée : sa première tentative d'ouverture de PawnIO, et sa
+            # première lecture (dans le même relevé), n'ont pas planté (ou la
+            # case est décochée : rien ne sera ouvert). Le compteur de
+            # plantages est remis à 0 ici, sans attendre la fin des nouveaux
+            # essais (jusqu'à une minute : un arrêt du PC pendant ce temps
+            # n'est pas un plantage).
+            self._start_confirmed = True
+            confirm_elevated_start()
+        if not self._pawnio_checked:
+            self._check_pawnio_started()
         # CPU
         t = d["cpu_temp"]
         freq = f"{d['cpu_freq']/1000:.2f} GHz" if d["cpu_freq"] else "—"
@@ -358,7 +539,7 @@ class MainWindow(QWidget):
         """Restaure les réglages. Appelé AVANT la création du sampler : on coupe
         les signaux pendant la restauration, sinon _set_interval s'exécuterait
         alors que self.sampler n'existe pas encore."""
-        s = QSettings("CachyMonitor", "CachyMonitor")
+        s = app_settings()
 
         for widget, key, default in (
             (self.interval, "interval_ms", DEFAULT_INTERVAL_MS),
@@ -404,12 +585,17 @@ class MainWindow(QWidget):
             # encore affichée à ce stade).
             self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
 
+        if self.pawnio_box is not None:
+            self.pawnio_box.blockSignals(True)
+            self.pawnio_box.setChecked(pawnio_setting_enabled())
+            self.pawnio_box.blockSignals(False)
+
         geo = s.value("geometry")
         if geo is not None:
             self.restoreGeometry(geo)
 
     def _save_settings(self):
-        s = QSettings("CachyMonitor", "CachyMonitor")
+        s = app_settings()
         s.setValue("interval_ms", self.interval.value())
         s.setValue("fps_target", self.fps_target.value())
         s.setValue("theme", self.theme_mode)
@@ -422,6 +608,25 @@ class MainWindow(QWidget):
         self._save_settings()
         self.sampler.stop()
         super().closeEvent(e)
+
+
+# Message de chaque cause durable d'échec de PawnIO (PawnIoCpu.failure_reason),
+# traduit par tr. Les causes passagères (PawnIoCpu.TRANSIENT) ont un seul message.
+_TURNED_OFF = ("The option has been turned off: CachyMonitor will no longer ask for "
+               "administrator rights.")
+PAWNIO_FAILURE_MESSAGES = {
+    PAWNIO.UNSUPPORTED: "PawnIO could not read this processor. " + _TURNED_OFF,
+    PAWNIO.BAD_MODULE: ("The AMD module next to CachyMonitor is damaged or has been replaced: "
+                        "reinstall CachyMonitor. " + _TURNED_OFF),
+    PAWNIO.MISSING_DRIVER: ("The PawnIO driver was not found. Install it from pawnio.eu, then "
+                            "tick the option again. " + _TURNED_OFF),
+    PAWNIO.DRIVER_REFUSED: ("PawnIO could not be started (the PawnIO driver may be too old: "
+                            "uninstall it in the Windows settings, then install the latest "
+                            "version from pawnio.eu). " + _TURNED_OFF),
+}
+PAWNIO_TRANSIENT_MESSAGE = ("PawnIO could not be opened right now. CachyMonitor keeps "
+                            "using MSI Afterburner for the CPU temperature, and will try "
+                            "PawnIO again at the next start.")
 
 
 def build_palette():
@@ -474,6 +679,8 @@ QLabel, QCheckBox {{ background: transparent; }}
 #optButton {{ background: {col('card')}; color: {col('muted')}; border: 1px solid {col('border')}; border-radius: 8px; padding: 5px 12px; font-weight: 600; }}
 #optButton:hover {{ color: {col('text')}; }}
 #optButton:checked {{ color: {col('cpu')}; border-color: {col('cpu')}; }}
+#aboutButton {{ background: {col('bg')}; color: {col('muted')}; border: 1px solid {col('border')}; border-radius: 6px; padding: 3px 10px; }}
+#aboutButton:hover {{ color: {col('cpu')}; border-color: {col('cpu')}; }}
 QSpinBox, QComboBox {{ background: {col('card')}; color: {col('text')}; border: 1px solid {col('border')}; border-radius: 6px; padding: 2px 6px; }}
 /* combobox-popup: 0 => vraie liste déroulante sous le champ, au lieu du menu
    centré sur l'entrée courante que dessinent Breeze et Adwaita. */
@@ -495,7 +702,23 @@ QCheckBox::indicator:checked {{ background: {col('cpu')}; border-color: {col('cp
 
 
 def main():
-    app = QApplication(sys.argv)
+    # Avant Qt : si une copie en administrateur démarre (PawnIO, 1.7.0), celle-ci
+    # s'efface sans ouvrir de fenêtre.
+    status = BUSY if DUPLICATE_ADMIN else relaunch_elevated()
+    if status == STARTED:
+        sys.exit(0)
+    app = QApplication(qt_arguments())
+    if status == BUSY:
+        confirm_elevated_start()    # copie élevée qui s'efface : pas un plantage
+        # Une copie administrateur tourne déjà (ou l'invite UAC est ouverte) :
+        # pas de seconde copie, mais on le dit plutôt que de ne rien montrer.
+        lang = app_settings().value("language", DEFAULT_LANG)
+        set_language(lang if lang in LANG_MODES else DEFAULT_LANG)
+        QMessageBox.information(None, "CachyMonitor", tr(
+            "CachyMonitor is already running in administrator mode (PawnIO), or is "
+            "starting. If its window does not appear, close CachyMonitor in the Task "
+            "Manager, then start it again."))
+        sys.exit(0)
     app.setApplicationName("CachyMonitor")
     # Windows n'affiche pas les SVG dans la barre des tâches : le .ico d'abord.
     here = asset_dir()
@@ -510,8 +733,24 @@ def main():
         app.setWindowIcon(QIcon.fromTheme("utilities-system-monitor"))
     # La palette de départ est posée par MainWindow (apply_theme), qui connaît
     # le mode mémorisé.
+    # Copie élevée : le compteur de plantages est remis à 0 une fois PawnIO
+    # ouvert et lu (MainWindow._check_pawnio_started), ou à une fermeture
+    # normale avant cela (quitter n'est pas planter). Branché AVANT la fenêtre
+    # et tout dialogue modal : une fermeture pendant l'un d'eux compte aussi.
+    app.aboutToQuit.connect(confirm_elevated_start)
+    # Fermeture de la session Windows (arrêt du PC) : aboutToQuit n'arrive
+    # pas toujours, mais ce n'est pas un plantage non plus.
+    app.commitDataRequest.connect(lambda _manager: confirm_elevated_start())
     win = MainWindow()
     win.show()
+    if debug_unavailable():
+        QMessageBox.information(win, "CachyMonitor", tr(
+            "Debug log unavailable: in administrator mode, CachyMonitor does not write "
+            "a log file. Start it without administrator rights to get one."))
+    if RELAUNCH_FAILED:
+        QMessageBox.warning(win, "CachyMonitor", tr(
+            "The last start in administrator mode (PawnIO) failed. The option has been "
+            "turned off: CachyMonitor starts normally again."))
     sys.exit(app.exec())
 
 

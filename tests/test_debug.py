@@ -1,5 +1,14 @@
 """Le journal de debogage ne fait rien sans --debug, et note chaque cause une fois."""
+import pytest
+
 from cachymon import debug
+
+
+@pytest.fixture(autouse=True)
+def chemin_recalcule(monkeypatch):
+    # Le chemin du journal est mis en cache a la premiere ecriture : chaque test
+    # repart d'un cache vide pour que son log_path() de test soit pris en compte.
+    monkeypatch.setattr(debug, "_log_path_once", lambda: debug.log_path())
 
 
 def test_silencieux_par_defaut(tmp_path, monkeypatch):

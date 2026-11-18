@@ -59,7 +59,7 @@ VSVersionInfo(
 )
 "@ | Set-Content -Path $versionFile -Encoding UTF8
 
-Write-Host "== 1/3  Empaquetage de l'executable (PyInstaller)" -ForegroundColor Cyan
+Write-Host "== 1/4  Empaquetage de l'executable (PyInstaller)" -ForegroundColor Cyan
 # --noupx : si UPX arrive un jour dans le PATH, PyInstaller s'en servirait tout
 # seul pour compresser les DLL, ce qui ramènerait les faux positifs antivirus.
 python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
@@ -74,7 +74,21 @@ python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
     $src
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller a echoue" }
 
-Write-Host "== 2/3  PresentMon (Intel, licence MIT)" -ForegroundColor Cyan
+# Télécharge un fichier tiers (sauf s'il est déjà là, intact) et refuse tout
+# fichier dont l'empreinte SHA256 n'est pas celle attendue : seule la copie
+# vérifiée peut partir dans l'installateur. Sert à PresentMon et à PawnIO.
+function Get-VerifiedFile([string]$Url, [string]$File, [string]$Sha256) {
+    if (-not (Test-Path $File) -or (Get-FileHash $File -Algorithm SHA256).Hash -ne $Sha256) {
+        Invoke-WebRequest -Uri $Url -OutFile $File -UseBasicParsing
+    }
+    $hash = (Get-FileHash $File -Algorithm SHA256).Hash
+    if ($hash -ne $Sha256) {
+        Remove-Item $File -Force
+        throw "Empreinte inattendue pour $(Split-Path $File -Leaf) ($hash) : fichier refuse"
+    }
+}
+
+Write-Host "== 2/4  PresentMon (Intel, licence MIT)" -ForegroundColor Cyan
 # PresentMon mesure les FPS sans Afterburner ni RivaTuner (source de secours
 # depuis 1.5.0). On l'embarque tel que publié par Intel : version figée, et
 # empreinte SHA256 vérifiée, pour qu'un fichier modifié ne parte jamais dans
@@ -87,14 +101,7 @@ $pmLicUrl  = "https://raw.githubusercontent.com/GameTechDev/PresentMon/v$pmVersi
 $pmDir     = Join-Path $work "presentmon"
 $pmExe     = Join-Path $pmDir "PresentMon.exe"
 New-Item -ItemType Directory -Force $pmDir | Out-Null
-if (-not (Test-Path $pmExe) -or (Get-FileHash $pmExe -Algorithm SHA256).Hash -ne $pmSha256) {
-    Invoke-WebRequest -Uri $pmUrl -OutFile $pmExe -UseBasicParsing
-}
-$hash = (Get-FileHash $pmExe -Algorithm SHA256).Hash
-if ($hash -ne $pmSha256) {
-    Remove-Item $pmExe -Force
-    throw "Empreinte de PresentMon inattendue ($hash) : fichier refuse"
-}
+Get-VerifiedFile $pmUrl $pmExe $pmSha256
 $sig = Get-AuthenticodeSignature $pmExe
 if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch "Intel Corporation") {
     throw "Signature de PresentMon invalide : $($sig.Status)"
@@ -102,7 +109,49 @@ if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch "Intel 
 Invoke-WebRequest -Uri $pmLicUrl -OutFile (Join-Path $pmDir "PresentMon-LICENSE.txt") -UseBasicParsing
 Write-Host "   PresentMon $pmVersion : empreinte et signature Intel verifiees" -ForegroundColor DarkGray
 
-Write-Host "== 3/3  Fabrication de l'installateur (Inno Setup)" -ForegroundColor Cyan
+Write-Host "== 3/4  PawnIO (namazso) : module AMD et installateur du pilote" -ForegroundColor Cyan
+# Depuis 1.7.0, la température et la consommation CPU se lisent sans Afterburner
+# par le pilote PawnIO (signé Microsoft), qui n'exécute que des modules signés.
+# On embarque :
+#   - le module AMDFamily17.bin (Ryzen), licence LGPL 2.1, non modifié ;
+#   - l'installateur officiel du pilote, proposé par une case de l'installateur.
+# Versions figées et empreintes vérifiées, comme PresentMon. Modules 0.2.11 et
+# non 0.2.12, sortie le jour du test (17/11/2026) : trop récente.
+$pwModVersion = "0.2.11"
+$pwModSha256  = "43608CB89BC84247FEF1368A139013F7D043E17DB6D6C8DFC9B46BF0905A81F4"
+$pwModUrl     = "https://github.com/namazso/PawnIO.Modules/releases/download/$pwModVersion/release_" + ($pwModVersion -replace '\.', '_') + ".zip"
+$pwSetVersion = "2.2.0"
+$pwSetSha256  = "1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032"
+$pwSetUrl     = "https://github.com/namazso/PawnIO.Setup/releases/download/$pwSetVersion/PawnIO_setup.exe"
+$pwDir        = Join-Path $work "pawnio"
+$pwZip        = Join-Path $pwDir "modules.zip"
+$pwSetup      = Join-Path $pwDir "PawnIO_setup.exe"
+New-Item -ItemType Directory -Force $pwDir | Out-Null
+Get-VerifiedFile $pwModUrl $pwZip $pwModSha256
+Get-VerifiedFile $pwSetUrl $pwSetup $pwSetSha256
+$sig = Get-AuthenticodeSignature $pwSetup
+if ($sig.Status -ne "Valid" -or $sig.SignerCertificate.Subject -notmatch "CN=namazso\.eu") {
+    throw "Signature de PawnIO_setup.exe invalide : $($sig.Status)"
+}
+$pwExtract = Join-Path $pwDir "modules"
+if (Test-Path $pwExtract) { Remove-Item $pwExtract -Recurse -Force }
+Expand-Archive -Path $pwZip -DestinationPath $pwExtract
+Copy-Item (Join-Path $pwExtract "AMDFamily17.bin") $pwDir -Force
+# L'appli refuse tout module dont l'empreinte diffère de MODULE_AMD_SHA256
+# (cachymon\pawnio.py) : si les deux ne concordent pas, le build s'arrête ici
+# plutôt que de livrer une fonction morte.
+$pyModMatch = Select-String -Path (Join-Path $root "cachymon\pawnio.py") `
+    -Pattern '^MODULE_AMD_SHA256\s*=\s*"([0-9a-fA-F]{64})"'
+if (-not $pyModMatch) { throw "MODULE_AMD_SHA256 introuvable dans cachymon\pawnio.py (format attendu : MODULE_AMD_SHA256 = `"<64 hex>`")" }
+$pyModHash = $pyModMatch.Matches[0].Groups[1].Value
+$binHash = (Get-FileHash (Join-Path $pwDir "AMDFamily17.bin") -Algorithm SHA256).Hash
+if (-not $pyModHash -or $binHash -ne $pyModHash.ToUpper()) {
+    throw "AMDFamily17.bin ($binHash) ne correspond pas a MODULE_AMD_SHA256 de pawnio.py ($pyModHash)"
+}
+Copy-Item (Join-Path $pwExtract "COPYING") (Join-Path $pwDir "PawnIO-modules-LICENSE.txt") -Force
+Write-Host "   PawnIO $pwSetVersion + modules $pwModVersion : empreintes et signature verifiees" -ForegroundColor DarkGray
+
+Write-Host "== 4/4  Fabrication de l'installateur (Inno Setup)" -ForegroundColor Cyan
 # Inno Setup se pose soit dans Program Files, soit — quand winget l'installe pour
 # le seul utilisateur courant — sous %LOCALAPPDATA%\Programs. On regarde aussi le
 # PATH, au cas où il aurait été installé autrement.

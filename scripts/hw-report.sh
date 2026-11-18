@@ -106,9 +106,10 @@ print("GPU  -> %s | %.0f %% | %s °C | %.0f/%.0f MiB | %s MHz | %s W" % (
     round(g["gpu_clock"]) if g["gpu_clock"] else "?",
     round(g["gpu_power"], 1) if g["gpu_power"] else "?"))
 from cachymon import debug
-if os.path.exists(debug.log_path()):
+log = debug.log_path()
+if log and os.path.exists(log):
     print("\nErreurs avalées pendant la lecture (joindre ce texte à l'issue) :")
-    print(open(debug.log_path(), encoding="utf-8").read())
+    print(open(log, encoding="utf-8").read())
 PY
 
 echo

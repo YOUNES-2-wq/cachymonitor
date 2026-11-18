@@ -120,7 +120,7 @@ kernel does (where everything can be read from `/sys`). So the app relies on
 
 | To get | You need |
 |---|---|
-| CPU temperature and power draw | **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (free) |
+| CPU temperature and power draw | **AMD Ryzen:** the **PawnIO** driver (optional, see below, since 1.7.0). **Intel**, or without PawnIO: **[MSI Afterburner](https://www.msi.com/Landing/afterburner)** (free) |
 | FPS and session statistics (1% low, 0.1% low...) | **PresentMon**, included in the installer. Otherwise **RivaTuner (RTSS)**, installed with Afterburner |
 | CPU usage, real clock speed, RAM, processor name | nothing, works everywhere (clock speed from a Windows performance counter since 1.5.1) |
 | GPU, VRAM, GPU temperature | nothing on NVIDIA (NVML driver library, then `nvidia-smi`); Afterburner otherwise |
@@ -129,9 +129,10 @@ kernel does (where everything can be read from `/sys`). So the app relies on
 That's it. There's nothing to configure in CachyMonitor.
 
 **Without Afterburner**, the app still starts and stays usable: CPU, RAM, GPU, VRAM and
-FPS are shown normally, and so is the real CPU clock speed. However, CPU temperature and
-power draw stay at `—`. There is a fallback for the temperature only, through
-[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
+FPS are shown normally, and so is the real CPU clock speed. On an AMD Ryzen with PawnIO
+(see below), CPU temperature and power draw are shown too. Otherwise they stay at `—`
+(there is a fallback for the temperature only, through
+[LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)).
 
 > The numbers come **from the same source as the RivaTuner on-screen display**: the FPS
 > shown by CachyMonitor is exactly the one you see in game.
@@ -156,6 +157,36 @@ tested on eFootball.
   window is still measured by RivaTuner.
 - To remove your account from the group later, in an administrator terminal:
   `Remove-LocalGroupMember -SID S-1-5-32-559 -Member YourName`
+
+### CPU temperature without Afterburner: PawnIO (AMD Ryzen, since 1.7.0)
+
+**[PawnIO](https://pawnio.eu)** is a small open source driver, signed by Microsoft, also
+used by LibreHardwareMonitor and FanControl. It only runs signed modules that allow a
+fixed list of reads. CachyMonitor uses the official AMD module
+([PawnIO.Modules](https://github.com/namazso/PawnIO.Modules), LGPL 2.1, unmodified) to
+read the CPU temperature and the CPU energy counter. **Nothing is ever written to the
+processor.** Tested on a Ryzen 5 5600: same values as Afterburner (within 0.1 °C and
+about 1 W), and no trouble with eFootball's anti-cheat.
+
+- **Three steps, all optional and off by default:**
+  1. Install CachyMonitor **for all users** (installer choice, or
+     `winget install YOUNES-2-wq.CachyMonitor --scope machine`). It then lives in
+     Program Files, a folder only an administrator can modify. CachyMonitor refuses to
+     run as administrator from any other folder: otherwise an ordinary program could
+     replace one of its files and take advantage of your "Yes" to the UAC prompt.
+  2. Install PawnIO, if it's not already there (FanControl and LibreHardwareMonitor
+     install it too): installer checkbox (AMD only), or `winget install namazso.PawnIO`.
+  3. In CachyMonitor's **Options**, tick **"CPU temperature via PawnIO"**. It takes
+     effect at the next launch. If something is missing, the box is greyed out and its
+     tooltip says why.
+- **The driver only answers to administrator programs.** So once the box is ticked,
+  CachyMonitor restarts itself as administrator at launch and **Windows asks for
+  confirmation (UAC) each time**. Answer "No" and the app opens normally, as in 1.6.0
+  (Afterburner values). Untick the box and it never asks again. On a standard
+  (non-administrator) account, it never asks.
+- Uninstalling CachyMonitor leaves PawnIO in place (other programs use it); it has its
+  own entry in "Installed apps".
+- **Intel processors:** not supported by this method yet; Afterburner is still needed.
 
 ### Rebuild the installer yourself
 
@@ -267,8 +298,8 @@ One file, two sets of sources: `IS_WINDOWS` switches each reader, and everything
 |-----------------|---------------------------------------|-----------------------------------------------|
 | CPU usage/core  | `/proc/stat`                          | psutil                                        |
 | CPU clock       | `scaling_cur_freq`                    | Windows performance counter, then Afterburner |
-| CPU temperature | hwmon `k10temp` / `coretemp`          | Afterburner, then LibreHardwareMonitor        |
-| CPU power       | —                                     | Afterburner                                   |
+| CPU temperature | hwmon `k10temp` / `coretemp`          | PawnIO (AMD), Afterburner, then LibreHardwareMonitor |
+| CPU power       | —                                     | PawnIO (AMD), then Afterburner                |
 | RAM             | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`               |
 | GPU / VRAM      | `nvidia-smi`, `amdgpu`, `i915`        | NVML, `nvidia-smi`, then Afterburner sensors  |
 | FPS / session   | **MangoHud** CSV logs                 | **PresentMon**; **RivaTuner (RTSS)** as a fallback, sampled every 100 ms |
@@ -330,7 +361,7 @@ CachyMonitor aims to support **any hardware**, but not everything has been verif
 
 | | CPU | GPU |
 |---|---|---|
-| **AMD** | Tested (via Afterburner) | Written, untested (Afterburner sensors) |
+| **AMD** | Tested (PawnIO and Afterburner) | Written, untested (Afterburner sensors) |
 | **Intel** | Written, untested (via Afterburner) | Written, untested (Afterburner sensors) |
 | **NVIDIA** | — | Tested (`nvidia-smi`) |
 
