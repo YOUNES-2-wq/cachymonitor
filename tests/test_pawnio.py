@@ -347,6 +347,7 @@ def test_environnement_sans_dossier_windows():
     assert "Users" not in env["PATH"]
 
 
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 def test_environnement_qt_de_l_appli():
     # Les réglages Qt posés par PyInstaller sont refaits depuis le dossier de
     # l'appli, pas repris de l'utilisateur.
@@ -378,6 +379,7 @@ class _FauxKernel32:
         self.fermes.append(handle)
 
 
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 @pytest.mark.parametrize("handle, erreur, existe", [
     (7, 0, True),       # ouvert : il existe
     (None, 5, True),    # accès refusé : celui d'une copie admin, il existe
@@ -464,6 +466,7 @@ def test_journal_une_seule_premiere_ecriture(tmp_path, monkeypatch):
 
 
 
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 def test_dll_trop_ancienne_est_definitive(ouverture_demandee, tmp_path):
     # Fonction manquante dans PawnIOLib.dll (vieille version) : pas d'essais en boucle.
     module = tmp_path / "m.bin"
@@ -480,6 +483,7 @@ def test_dll_trop_ancienne_est_definitive(ouverture_demandee, tmp_path):
 
 
 
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 def test_admin_avec_la_case_environnement_durci(monkeypatch):
     # Lancé en admin par l'utilisateur, case cochée : PawnIO sera ouvert, donc
     # même protection que la copie relancée.
@@ -592,6 +596,7 @@ def test_import_ne_durcit_rien(monkeypatch):
 
 
 
+@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 def test_dossier_d_installation_exact(monkeypatch, tmp_path):
     # Sous Program Files ne suffit pas : il faut le dossier inscrit par notre
     # installateur (HKLM), pas un sous-dossier laissé modifiable par un autre logiciel.
