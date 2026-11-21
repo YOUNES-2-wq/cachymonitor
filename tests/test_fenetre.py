@@ -16,11 +16,17 @@ def fenetre():
     from PySide6.QtWidgets import QApplication
     import cachymonitor
     app = QApplication.instance() or QApplication([])
+    # Aucun thread de mesure : on envoie nos propres relevés. Le Sampler démarré par la
+    # fenêtre faisait quitter Python avec un code d'erreur (la CI échouait malgré « 149
+    # passed »), et son stop() lance PresentMon --terminate_existing_session, qui
+    # couperait la session de l'appli installée sur le PC de test.
+    mp = pytest.MonkeyPatch()
+    mp.setattr(cachymonitor.Sampler, "start", lambda self: None)
     win = cachymonitor.MainWindow()
-    win.sampler.stop()          # pas de mesures réelles : on envoie nos propres relevés
     yield win
     win.update_bar.cancel()
     app.processEvents()
+    mp.undo()
 
 
 def _releve(jeu):
