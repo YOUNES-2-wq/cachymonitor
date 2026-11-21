@@ -12,7 +12,8 @@ Windows la lit).
 Le reste vit dans `cachymon/` : `config` (constantes, `APP_ROOT`), `i18n` (TRANSLATIONS,
 `tr`), `theme`, `sensors` (CPU, RAM, GPU), `controllers` (XInput + HID), `winshm` (mémoire
 partagée Afterburner/RTSS), `winapi` (liaisons ctypes), `pawnio`, `elevation`, `game`
-(statistiques + goulot), `game_windows` (RTSS, PresentMon), `sampler`, `widgets`, `debug`.
+(statistiques + goulot), `game_windows` (RTSS, PresentMon), `sampler`, `widgets`, `debug`, `updater` + `updatebar`
+(mise à jour intégrée, voir plus bas).
 Pièges : une globale réécrite (`global X`) doit rester dans le module qui la définit, et
 `PRESENTMON_STATE` se lit par `presentmon_state()` (dans `game_windows`), jamais par
 `from ... import PRESENTMON_STATE`.
@@ -264,6 +265,23 @@ Younes, `python` n'est que l'alias du Microsoft Store : le vrai est `py`. Avant 
 - Validé sur le PC de Younes (build d'avant les revues 13 à 20) : identique à Afterburner
   (0,1 °C, ~1 W), avec et sans Afterburner, eFootball (anti-triche) OK. **Intel non pris
   en charge** (module IntelMSR jamais essayé, pas de matériel).
+
+## Mise à jour intégrée (écrite le 21/11/2026, pas encore publiée : sortira avec la 1.7.1)
+- `cachymon/updater.py` (sans Qt, testé) : API GitHub `releases/latest`, ignore brouillons et
+  préversions ; l'installateur `CachyMonitor-Setup-X.Y.Z.exe` n'est jugé installable que
+  s'il vient de https://github.com et que GitHub publie son `digest` sha256 (comparé au
+  téléchargement, sinon fichier effacé). Lancement par ShellExecute (UAC possible si
+  installé pour tous) avec `/SILENT /SP- /NOCANCEL /CLOSEAPPLICATIONS /RELAUNCH=1` ;
+  `CachyMonitor.iss` relance l'appli (`RelaunchRequested`, `runasoriginaluser`).
+- `cachymon/updatebar.py` : barre cachée sauf nouveauté, threads `daemon` (jamais de QThread
+  qui survit à la fenêtre). **En administrateur** : pas d'installation ni de navigateur sauf
+  process durci (`can_install_here`), sinon la barre demande de relancer sans admin ;
+  depuis les sources : bouton vers la page de la release.
+- Case « Rechercher les mises à jour au démarrage » cochée par défaut (choix de Younes,
+  dit dans les deux README). « × » retient la version écartée (`update_skipped`).
+- Jamais testé de bout en bout (rien à installer tant que la 1.7.1 n'existe pas) : à faire
+  à la première release qui l'inclut, depuis une 1.7.0 installée... qui n'a PAS la barre :
+  tester d'abord 1.7.1 -> 1.7.2.
 
 ## Reste à faire
 - Faux positifs antivirus : Windows Defender a retiré CachyMonitor de sa liste (confirmé par Younes le 2026-11-14). Le signalement WDSI est clos.

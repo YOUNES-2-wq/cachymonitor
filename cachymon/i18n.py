@@ -151,6 +151,24 @@ TRANSLATIONS = {
         "Neither CPU nor GPU saturated — limited by FPS cap / vsync":
             "Ni CPU ni GPU saturés — limité par le cap FPS / vsync",
         "Balanced load": "Charge équilibrée",
+        # Mise à jour
+        "Check for updates at startup": "Rechercher les mises à jour au démarrage",
+        "Asks GitHub whether a newer version exists. Nothing is sent about your PC.":
+            "Demande à GitHub s'il existe une version plus récente. Rien n'est envoyé sur votre PC.",
+        "Hide until the next version": "Masquer jusqu'à la prochaine version",
+        "Downloading version {version}…": "Téléchargement de la version {version}…",
+        "Installing version {version}…": "Installation de la version {version}…",
+        "Version {version} is available.": "La version {version} est disponible.",
+        "Version {version} is available. Restart CachyMonitor without administrator "
+        "rights to update.":
+            "La version {version} est disponible. Relancez CachyMonitor sans les droits "
+            "administrateur pour la mettre à jour.",
+        "Update now": "Mettre à jour",
+        "Open the download page": "Ouvrir la page de téléchargement",
+        "Cancel": "Annuler",
+        "Retry": "Réessayer",
+        "The update failed ({reason}).": "La mise à jour a échoué ({reason}).",
+        "Windows did not start the installer": "Windows n'a pas lancé l'installateur",
         # Divers
         "Starting…": "Démarrage…",
         "waiting for data…": "en attente de données…",

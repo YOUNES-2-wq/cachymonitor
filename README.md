@@ -217,6 +217,15 @@ python cachymonitor.py
 On Windows there's nothing to configure for FPS: **PresentMon**, included in the
 installer, measures it, and **RivaTuner (RTSS)** takes over when it measures nothing.
 
+## Updates
+
+A few seconds after it starts, then every 6 hours while it stays open, CachyMonitor asks
+GitHub (`api.github.com`) whether a newer version exists. Nothing about your PC is sent.
+When there is one, a bar appears at the top of the window: **Update now** downloads the
+installer, checks its SHA-256 fingerprint against the one published by GitHub, installs it
+silently and restarts the app. This check is on by default; untick **Check for updates at
+startup** in the Options to turn it off.
+
 ## Hardware compatibility
 
 CachyMonitor aims to support **any hardware**, but not everything has been verified.

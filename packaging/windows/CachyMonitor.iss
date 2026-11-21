@@ -123,8 +123,18 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 ; Le pilote PawnIO n'est pas ici mais dans CurStepChanged ([Code]) : son code de
 ; sortie et sa présence après coup y sont vérifiés.
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; Mise à jour depuis l'appli (1.7.1) : elle lance l'installateur avec /SILENT
+; /RELAUNCH=1 ; le postinstall ci-dessus est alors ignoré (skipifsilent), donc on
+; relance l'appli ici, avec les droits de l'utilisateur et non ceux de l'installateur.
+Filename: "{app}\{#AppExeName}"; Flags: nowait runasoriginaluser; Check: RelaunchRequested
 
 [Code]
+// Passé par la mise à jour intégrée à l'appli (cachymon\updater.py, launch_installer).
+function RelaunchRequested: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;
+
 // Même règle que l'appli (cachymon\pawnio.py, pawnio_dll) : PawnIO compte comme
 // installé seulement si sa bibliothèque est sous Program Files, d'après son
 // InstallLocation ou à l'emplacement par défaut. Sinon la case est proposée.

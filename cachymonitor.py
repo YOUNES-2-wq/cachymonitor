@@ -69,6 +69,7 @@ from cachymon.i18n import DEFAULT_LANG, LANG_LABELS, LANG_MODES, set_language, t
 from cachymon.sampler import Sampler  # noqa: E402
 from cachymon.sensors import read_cpu_name, read_ram_name  # noqa: E402
 from cachymon.theme import DEFAULT_THEME, THEME_LABELS, THEME_MODES, col, resolve_theme, set_palette, temp_role  # noqa: E402
+from cachymon.updatebar import UpdateBar  # noqa: E402
 from cachymon.widgets import ControllerPanel, GamePanel, GaugeCard  # noqa: E402
 
 
@@ -120,6 +121,13 @@ class MainWindow(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(14)
+
+        # Barre de mise à jour : cachée tant qu'aucune version plus récente n'existe.
+        self.update_bar = UpdateBar()
+        self.update_bar.quit_requested.connect(self.close)
+        self.update_bar.found.connect(self._on_update_found)
+        self.update_bar.dismissed.connect(self._skip_update)
+        root.addWidget(self.update_bar)
 
         # En-tête : titre + bouton qui déplie les réglages
         header = QHBoxLayout()
@@ -194,6 +202,33 @@ class MainWindow(QWidget):
         self.sampler.sampled.connect(self.on_sample)
         self.sampler.start()
 
+        # Recherche de mise à jour : peu après le démarrage (l'affichage d'abord),
+        # puis toutes les 6 heures si l'appli reste ouverte.
+        self._update_timer = QTimer(self)
+        self._update_timer.timeout.connect(self._check_updates)
+        self._update_timer.start(6 * 3600 * 1000)
+        QTimer.singleShot(4000, self._check_updates)
+
+    # -- mise à jour -------------------------------------------------------- #
+    def _check_updates(self):
+        if self.update_box.isChecked():
+            self.update_bar.check(APP_VERSION)
+
+    def _on_update_found(self, release):
+        skipped = str(app_settings().value("update_skipped", ""))
+        if release.version != skipped:
+            self.update_bar.offer(release)
+
+    def _skip_update(self, version):
+        app_settings().setValue("update_skipped", version)
+
+    def _toggle_update_check(self, on):
+        app_settings().setValue("check_updates", on)
+        if on:
+            self._check_updates()
+        else:
+            self.update_bar.hide_bar()
+
     # -- panneau Options ---------------------------------------------------- #
     def _build_options(self):
         """Zone de réglages dépliable. Repliée par défaut : l'écran reste dédié
@@ -265,6 +300,12 @@ class MainWindow(QWidget):
         self.pawnio_box = QCheckBox()
         self.pawnio_box.toggled.connect(self._toggle_pawnio)
         grid.addWidget(self.pawnio_box, 3, 0, 1, 4)
+
+        # Recherche de mise à jour au démarrage (un appel à GitHub, rien d'envoyé).
+        self.update_box = QCheckBox()
+        self.update_box.setChecked(True)
+        self.update_box.toggled.connect(self._toggle_update_check)
+        grid.addWidget(self.update_box, 4, 0, 1, 4)
         grid.setColumnStretch(4, 1)
 
     def _toggle_options(self, shown):
@@ -378,6 +419,10 @@ class MainWindow(QWidget):
         self.ontop.setText(tr("Always on top"))
         self.about_button.setText(tr("About"))
         self._pawnio_retext()
+        self.update_box.setText(tr("Check for updates at startup"))
+        self.update_box.setToolTip(tr(
+            "Asks GitHub whether a newer version exists. Nothing is sent about your PC."))
+        self.update_bar.retext()
         self.theme.setToolTip(tr("« System » follows the desktop light/dark setting"))
         self.lang.setToolTip(tr("« System » follows the desktop language"))
 
@@ -574,6 +619,10 @@ class MainWindow(QWidget):
         self.pawnio_box.setChecked(pawnio_setting_enabled())
         self.pawnio_box.blockSignals(False)
 
+        self.update_box.blockSignals(True)
+        self.update_box.setChecked(_as_bool(s.value("check_updates", True)))
+        self.update_box.blockSignals(False)
+
         geo = s.value("geometry")
         if geo is not None:
             self.restoreGeometry(geo)
@@ -590,6 +639,7 @@ class MainWindow(QWidget):
 
     def closeEvent(self, e):
         self._save_settings()
+        self.update_bar.cancel()
         self.sampler.stop()
         super().closeEvent(e)
 
@@ -674,6 +724,14 @@ QComboBox QAbstractItemView {{ background-color: {col('card')}; color: {col('tex
    redonne un fond plein, sinon le bureau se voit à travers la liste. */
 QComboBox QAbstractItemView::item {{ padding: 3px 6px; }}
 QComboBox QListView {{ background-color: {col('card')}; }}
+#updateBar {{ background: {col('card')}; border: 1px solid {col('cpu')}; border-radius: 10px; }}
+#updateLabel {{ color: {col('text')}; font-weight: 600; }}
+#updateButton {{ background: {col('cpu')}; color: {col('card')}; border: none; border-radius: 6px; padding: 4px 12px; font-weight: 700; }}
+#updateButton:disabled {{ background: {col('border')}; color: {col('muted')}; }}
+#updateClose {{ background: transparent; color: {col('muted')}; border: none; font-size: 16px; padding: 0 6px; }}
+#updateClose:hover {{ color: {col('text')}; }}
+#updateProgress {{ background: {col('ring')}; border: none; border-radius: 4px; }}
+#updateProgress::chunk {{ background: {col('cpu')}; border-radius: 4px; }}
 QCheckBox {{ color: {col('muted')}; spacing: 8px; }}
 /* L'indicateur est dessiné ici plutôt que laissé au style natif : sous Windows,
    celui-ci suit le thème du SYSTÈME et non celui de l'application, si bien qu'un
