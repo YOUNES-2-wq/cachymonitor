@@ -1,6 +1,5 @@
-"""Garde-fous sur le dictionnaire de traductions et la config MangoHud."""
+"""Garde-fous sur le dictionnaire de traductions."""
 from cachymon import i18n
-from cachymon.mangohud_conf import _conf_values
 
 
 def test_traductions_sans_cle_vide():
@@ -28,11 +27,6 @@ def test_tr_traduit_en_francais():
     cle = next(iter(i18n.TRANSLATIONS["fr"]))
     assert i18n.tr(cle) == i18n.TRANSLATIONS["fr"][cle]
     i18n.set_language("en")
-
-
-def test_conf_mangohud_garde_la_derniere_valeur():
-    v = _conf_values(["# commentaire", "fps_limit=60", "autostart_log=0", "autostart_log=3600", ""])
-    assert v["autostart_log"] == "3600" and v["fps_limit"] == "60"
 
 
 def test_libelles_des_listes_traduits():

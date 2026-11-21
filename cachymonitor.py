@@ -2,40 +2,33 @@
 """
 CachyMonitor — moniteur système gaming (CPU / GPU / RAM / températures / FPS).
 
-Une seule application pour Linux ET Windows : chaque lecteur choisit sa source
-selon la plateforme, le reste (interface, thèmes, langues, calculs de
-statistiques) est strictement commun. Ce fichier est le point d'entrée ; le code
-vit dans le dossier cachymon/ (config, sensors, controllers, game, game_windows,
-widgets...) et doit toujours être installé à côté de lui.
+Application Windows 11 : psutil, NVML / nvidia-smi, mémoire partagée MSI
+Afterburner et RTSS, PresentMon, pilote PawnIO, manettes via XInput et HID brut.
+Ce fichier est le point d'entrée ; le code vit dans le dossier cachymon/
+(config, sensors, controllers, game, game_windows, widgets...) et doit toujours
+être installé à côté de lui.
 
-    Linux    : /proc, /sys (hwmon, manettes), nvidia-smi, logs CSV MangoHud
-    Windows  : psutil, nvidia-smi, mémoire partagée MSI Afterburner et RTSS,
-               manettes via XInput et HID brut
-
-Dépendances : PySide6 partout, plus psutil sous Windows uniquement.
-Aucune autre librairie : les graphes sont dessinés au QPainter.
+Dépendances : PySide6 et psutil. Aucune autre librairie : les graphes sont
+dessinés au QPainter.
 
 --------------------------------------------------------------------------
 MATÉRIEL — ce qui est réellement testé
 --------------------------------------------------------------------------
 Le code vise tous les matériels, mais il n'a été VÉRIFIÉ que sur :
 
-    CPU AMD Ryzen 5 5600 (k10temp) + GPU NVIDIA RTX 3060 (nvidia-smi)
-      · CachyOS / KDE Plasma / Wayland
+    CPU AMD Ryzen 5 5600 + GPU NVIDIA RTX 3060
       · Windows 11 Pro 24H2 + MSI Afterburner / RivaTuner (RTSS 7.x)
 
 Écrit d'après la documentation mais JAMAIS EXÉCUTÉ sur le matériel
 correspondant :
 
-  * température CPU Intel      -> capteur « coretemp »        [Linux]
-  * GPU AMD (Radeon)           -> pilote amdgpu via /sys      [Linux]
-  * GPU Intel (i915 / xe)      -> partiel, /sys               [Linux]
-  * GPU non-NVIDIA sous Windows -> capteurs Afterburner       [Windows]
-  * manette Xbox sous Windows  -> XInput                     [Windows]
+  * GPU non-NVIDIA            -> capteurs Afterburner
+  * manette Xbox              -> XInput
+  * température CPU Intel     -> Afterburner
 
 Si vous testez sur l'une de ces configurations, les retours sont les
-bienvenus : ouvrez une « issue » avec la sortie de `scripts/hw-report.sh`
-(ou simplement une capture de l'application).
+bienvenus : ouvrez une « issue » avec une capture de l'application
+(ou la sortie de `scripts/test_afterburner.py`).
 https://github.com/YOUNES-2-wq/cachymonitor/issues
 --------------------------------------------------------------------------
 """
@@ -67,7 +60,7 @@ if __name__ == "__main__":
 from PySide6.QtCore import Qt, QTimer  # noqa: E402
 from PySide6.QtGui import QColor, QIcon, QPalette  # noqa: E402
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, QCheckBox, QSpinBox, QComboBox, QToolButton, QListView, QMessageBox  # noqa: E402
-from cachymon.config import DEFAULT_FPS_TARGET, DEFAULT_INTERVAL_MS, IS_WINDOWS, _as_bool, app_settings, asset_dir  # noqa: E402
+from cachymon.config import DEFAULT_FPS_TARGET, DEFAULT_INTERVAL_MS, _as_bool, app_settings, asset_dir  # noqa: E402
 from cachymon.pawnio import (PAWNIO, elevation_blocker, env_hardened, is_admin,  # noqa: E402
                              SETTING_KEY as PAWNIO_SETTING,
                              setting_enabled as pawnio_setting_enabled)
@@ -269,16 +262,14 @@ class MainWindow(QWidget):
 
         # Windows : mode administrateur pour la température CPU (PawnIO, 1.7.0).
         # Décoché par défaut ; lu au démarrage suivant par elevation.py.
-        self.pawnio_box = None
-        if IS_WINDOWS:
-            self.pawnio_box = QCheckBox()
-            self.pawnio_box.toggled.connect(self._toggle_pawnio)
-            grid.addWidget(self.pawnio_box, 3, 0, 1, 4)
+        self.pawnio_box = QCheckBox()
+        self.pawnio_box.toggled.connect(self._toggle_pawnio)
+        grid.addWidget(self.pawnio_box, 3, 0, 1, 4)
         grid.setColumnStretch(4, 1)
 
     def _toggle_options(self, shown):
         self.options.setVisible(shown)
-        if shown and self.pawnio_box is not None:
+        if shown:
             # PawnIO a pu être installé (ou retiré, ou le module remplacé) depuis
             # le démarrage : la case est réévaluée à chaque ouverture. Coût
             # négligeable (registre et empreinte d'un fichier de 10 Ko).
@@ -290,8 +281,6 @@ class MainWindow(QWidget):
         quand le mode administrateur n'apporterait rien ou serait imprudent ;
         toujours décochable si elle a été cochée."""
         box = self.pawnio_box
-        if box is None:
-            return
         box.setText(tr("CPU temperature via PawnIO (asks for administrator rights at launch)"))
         if self.options.isHidden():
             # État et infobulle calculés à l'ouverture des Options (_toggle_options) :
@@ -328,17 +317,15 @@ class MainWindow(QWidget):
         import platform
         from PySide6 import __version__ as pyside_version
 
-        system = "%s %s" % (platform.system(), platform.release())
-        if IS_WINDOWS:
-            # Avant Python 3.12, platform.release() dit « 10 » sur Windows 11 :
-            # le numéro de build tranche (22000 et plus = Windows 11).
-            build = sys.getwindowsversion().build
-            system = "Windows %s (build %d)" % ("11" if build >= 22000 else
-                                                platform.release(), build)
+        # Avant Python 3.12, platform.release() dit « 10 » sur Windows 11 :
+        # le numéro de build tranche (22000 et plus = Windows 11).
+        build = sys.getwindowsversion().build
+        system = "Windows %s (build %d)" % ("11" if build >= 22000 else
+                                            platform.release(), build)
         lines = [
             "<h3>CachyMonitor</h3>",
             "<p><b>%s</b></p>" % tr("Version {version}").format(version=APP_VERSION),
-            "<p>%s</p>" % tr("Lightweight gaming system monitor for Linux and Windows 11: "
+            "<p>%s</p>" % tr("Lightweight gaming system monitor for Windows 11: "
                              "CPU, GPU, RAM, VRAM, temperatures, FPS and controller battery."),
             "<p>%s</p>" % tr("Made by {author}, free and open source (MIT license).")
             .format(author=APP_AUTHOR),
@@ -346,14 +333,13 @@ class MainWindow(QWidget):
         ]
         # Un lien cliqué depuis un process administrateur ouvrirait le navigateur
         # en administrateur : dans ce cas, l'adresse est seulement sélectionnable.
-        elevated = IS_WINDOWS and is_admin()
+        elevated = is_admin()
         lines.append(APP_URL if elevated else '<a href="%s">%s</a>' % (APP_URL, APP_URL))
         lines.append("</p><p style='color:%s; font-size:11px;'>%s<br>Python %s · Qt %s"
                      % (col("muted"), tr("System: {value}").format(value=system),
                         platform.python_version(), pyside_version))
-        if IS_WINDOWS:
-            lines.append("<br>" + tr("Administrator mode: {value}").format(
-                value=tr("yes") if elevated else tr("no")))
+        lines.append("<br>" + tr("Administrator mode: {value}").format(
+            value=tr("yes") if elevated else tr("no")))
         lines.append("</p>")
 
         box = QMessageBox(self)
@@ -446,7 +432,7 @@ class MainWindow(QWidget):
         absent ou trop ancien) : la case est décochée, sinon l'UAC reviendrait à
         chaque lancement pour rien. Cause passagère (pilote qui ne répond pas,
         verrou tenu par un autre logiciel) : la case reste, Afterburner reprend."""
-        if not env_hardened() or self.pawnio_box is None:
+        if not env_hardened():
             self._pawnio_checked = True     # rien à surveiller
             return
         if not PAWNIO.tried():
@@ -476,7 +462,6 @@ class MainWindow(QWidget):
 
     def on_sample(self, d):
         if not self._start_confirmed and (not env_hardened() or PAWNIO.tried()
-                                          or self.pawnio_box is None
                                           or not self.pawnio_box.isChecked()):
             # Copie élevée : sa première tentative d'ouverture de PawnIO, et sa
             # première lecture (dans le même relevé), n'ont pas planté (ou la
@@ -521,7 +506,7 @@ class MainWindow(QWidget):
         # Manettes
         self.controllers.update_controllers(d.get("controllers", []))
 
-        # Session de jeu (MangoHud)
+        # Session de jeu (PresentMon / RivaTuner)
         g = d.get("game")
         if g is None:
             self.game.clear()
@@ -585,10 +570,9 @@ class MainWindow(QWidget):
             # encore affichée à ce stade).
             self.setWindowFlag(Qt.WindowStaysOnTopHint, True)
 
-        if self.pawnio_box is not None:
-            self.pawnio_box.blockSignals(True)
-            self.pawnio_box.setChecked(pawnio_setting_enabled())
-            self.pawnio_box.blockSignals(False)
+        self.pawnio_box.blockSignals(True)
+        self.pawnio_box.setChecked(pawnio_setting_enabled())
+        self.pawnio_box.blockSignals(False)
 
         geo = s.value("geometry")
         if geo is not None:
@@ -722,9 +706,7 @@ def main():
     app.setApplicationName("CachyMonitor")
     # Windows n'affiche pas les SVG dans la barre des tâches : le .ico d'abord.
     here = asset_dir()
-    names = ("cachymonitor.ico", "cachymonitor.svg") if IS_WINDOWS else \
-            ("cachymonitor.svg", "cachymonitor.ico")
-    for name in names:
+    for name in ("cachymonitor.ico", "cachymonitor.svg"):
         icon_path = os.path.join(here, name)
         if os.path.exists(icon_path):
             app.setWindowIcon(QIcon(icon_path))

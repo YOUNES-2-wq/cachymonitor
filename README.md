@@ -4,19 +4,16 @@
 
 A lightweight gaming system monitor for a second screen: **CPU, GPU, RAM, VRAM,
 temperatures and FPS** with real-time graphs, session statistics (1% low, 0.1% low,
-frametime, CPU/GPU bottleneck) and your **controller's battery level**. One Python file
-that runs on **Linux and Windows 11**, with a single dependency (PySide6).
+frametime, CPU/GPU bottleneck) and your **controller's battery level**, for
+**Windows 11**.
 
 ```powershell
-winget install cachymonitor          # Windows 11
-```
-
-```sh
-paru -S cachymonitor                 # Arch, CachyOS, Manjaro...
+winget install cachymonitor
 ```
 
 Or **[download the Windows installer (CachyMonitor-Setup.exe)](https://github.com/YOUNES-2-wq/cachymonitor/releases/latest)**.
-Other Linux distributions: see [manual install](#manual-install-any-distribution).
+
+> A **Linux version** is available: [CachyMonitor for Linux](https://github.com/YOUNES-2-wq/cachymonitor-linux).
 
 > Independent community project, made by a CachyOS user. **Not affiliated with the
 > official CachyOS team**; the name is just a nod to the distribution.
@@ -35,8 +32,7 @@ dark / system), language and always-on-top.*
 
 **The perfect app for my second screen.**
 
-> **Language**: the interface follows the system language by default (`LANG`/`LC_ALL`
-> on Linux, the Windows locale otherwise): **French** if your desktop is in French,
+> **Language**: the interface follows the system language by default (the Windows locale): **French** if your desktop is in French,
 > **English** everywhere else. You can also switch it live in **Options > Language**
 > (System / English / Français); the choice is remembered. Adding a language means
 > adding an entry to the `TRANSLATIONS` dictionary at the top of `cachymonitor.py`.
@@ -56,11 +52,9 @@ a single readable Python file, so anyone can check what it does.
 
 ## What it does
 
-On Linux, CachyMonitor builds on **[MangoHud](https://github.com/flightlessmango/MangoHud)**,
-the reference tool for recording in-game performance. But where MangoHud shows an
-**overlay on top of the game**, CachyMonitor **turns its logs into real session
-statistics** in a separate window. On Windows, the same statistics come from
-**RivaTuner (RTSS)**.
+CachyMonitor measures FPS with **PresentMon** and **RivaTuner (RTSS)**, and **turns those
+measurements into real session statistics** in a separate window, instead of an overlay
+on top of the game.
 
 It is a companion window, separate from the game, that brings together in one interface:
 
@@ -71,13 +65,13 @@ It is a companion window, separate from the game, that brings together in one in
 - **no overlay** drawn on top of the game, in a light app (one Python file, one
   dependency);
 - your **controller**: model, wired or Bluetooth connection and battery level, so it
-  doesn't die on you mid-game, **on Linux and on Windows**;
+  doesn't die on you mid-game;
 - a **light or dark theme**, chosen by you or following your desktop automatically.
 
-The building blocks already existed (MangoHud, GOverlay, RivaTuner...), but as far as I
+The building blocks already existed (RivaTuner, PresentMon...), but as far as I
 know nobody had put them together into a **companion dashboard built for gaming**. That's
 the whole idea: not reinventing the measurements, but making them **readable and easy to
-analyse**. Many thanks to the MangoHud team, without whom none of this would be possible.
+analyse**.
 
 ## Install on Windows 11
 
@@ -114,9 +108,8 @@ creates shortcuts (desktop and Start menu) and uninstalls cleanly from
 ### Requirements: MSI Afterburner and RivaTuner
 
 **Read this before wondering why some values are empty.** On Windows, CachyMonitor
-doesn't measure the hardware itself: Windows doesn't expose sensors the way the Linux
-kernel does (where everything can be read from `/sys`). So the app relies on
-**MSI Afterburner**, which most PC gamers already run.
+doesn't measure all the hardware itself: Windows doesn't expose most sensors directly.
+So the app relies on **MSI Afterburner**, which most PC gamers already run.
 
 | To get | You need |
 |---|---|
@@ -205,159 +198,28 @@ python -m pip install pyside6 psutil
 python cachymonitor.py
 ```
 
-## Install on Linux
-
-> **CachyMonitor works on any Linux distribution** (Arch, CachyOS, Fedora, Ubuntu,
-> Debian, openSUSE, Pop!\_OS...). It only reads standard kernel sources (`/proc`,
-> `/sys`, `hwmon`), `nvidia-smi` and MangoHud logs: nothing is distribution-specific.
-> The only difference between distros is how you install the dependency (**PySide6**).
->
-> - **Arch-based distros** (CachyOS, Manjaro, EndeavourOS...): one-command install from
->   the **AUR** (below).
-> - **All other distros**: manual install from Git (further down).
->
-> **X11 and Wayland**: no data goes through the display server, and Qt6 handles both.
-> Tested on both. One thing to know: the "always on top" option is always honoured on
-> X11, while many Wayland compositors ignore that request from an application. That's
-> not a CachyMonitor bug.
-
-### From the AUR (recommended on Arch-based distros)
-
-[![AUR version](https://img.shields.io/aur/version/cachymonitor?label=AUR&color=1793d1&cacheSeconds=600)](https://aur.archlinux.org/packages/cachymonitor)
-
-With an AUR helper, for example `paru`:
-
-```sh
-paru -S cachymonitor
-```
-
-or `yay`:
-
-```sh
-yay -S cachymonitor
-```
-
-Then launch **CachyMonitor** from your application menu, or run `cachymonitor`.
-
-### Manual install (any distribution)
-
-Works everywhere: all you need is **Python 3** (already present on every distro) and
-**PySide6**.
-
-**1. Install PySide6** with your distro's package manager:
-
-```sh
-# Arch / CachyOS / Manjaro
-sudo pacman -S pyside6
-
-# Fedora
-sudo dnf install python3-pyside6
-
-# Ubuntu / Debian / Pop!_OS / Mint
-# Debian splits PySide6 into one package per Qt module: there is no global
-# "python3-pyside6" package. CachyMonitor only needs these three.
-sudo apt install python3-pyside6.qtcore python3-pyside6.qtgui python3-pyside6.qtwidgets
-
-# openSUSE
-sudo zypper install python3-PySide6
-```
-
-> If PySide6 isn't packaged on your distro, you can still install it with pip
-> (ideally in a virtual environment): `pip install PySide6`.
-
-**2. Clone the repository:**
-
-```sh
-git clone https://github.com/YOUNES-2-wq/cachymonitor.git
-```
-
-**3. Run the app:**
-
-```sh
-python3 cachymonitor/cachymonitor.py
-```
-
-**4. (Optional) Add CachyMonitor to your application menu**, from the folder where you
-cloned the repository. The bundled launcher targets a system-wide (AUR) install; this
-command makes a copy that points to your clone.
-
-```sh
-mkdir -p ~/.local/share/applications && sed -e "s|^Exec=.*|Exec=python3 $PWD/cachymonitor/cachymonitor.py|" -e "s|^Icon=.*|Icon=$PWD/cachymonitor/cachymonitor.svg|" cachymonitor/cachymonitor.desktop > ~/.local/share/applications/cachymonitor.desktop
-```
-
-> Optional, depending on your hardware: `mangohud` (in-game statistics), `nvidia-utils`
-> (NVIDIA GPU), `pciutils` (GPU name), `dmidecode` (RAM type/speed). Each one installs
-> the same way on your distro (`dnf`, `apt`, `zypper`...).
-
 ## Data sources
 
-One file, two sets of sources: `IS_WINDOWS` switches each reader, and everything else
-(interface, themes, languages, statistics) is shared.
+| Metric          | Source                                                      |
+|-----------------|-------------------------------------------------------------|
+| CPU usage/core  | psutil                                                      |
+| CPU clock       | Windows performance counter, then Afterburner               |
+| CPU temperature | PawnIO (AMD), Afterburner, then LibreHardwareMonitor        |
+| CPU power       | PawnIO (AMD), then Afterburner                              |
+| RAM             | psutil + `Win32_PhysicalMemory`                             |
+| GPU / VRAM      | NVML, `nvidia-smi`, then Afterburner sensors                |
+| FPS / session   | **PresentMon**; **RivaTuner (RTSS)** as a fallback, sampled every 100 ms |
+| Controllers     | raw HID *(Sony)*, XInput *(Xbox)*                           |
 
-| Metric          | Linux                                 | Windows 11                                    |
-|-----------------|---------------------------------------|-----------------------------------------------|
-| CPU usage/core  | `/proc/stat`                          | psutil                                        |
-| CPU clock       | `scaling_cur_freq`                    | Windows performance counter, then Afterburner |
-| CPU temperature | hwmon `k10temp` / `coretemp`          | PawnIO (AMD), Afterburner, then LibreHardwareMonitor |
-| CPU power       | —                                     | PawnIO (AMD), then Afterburner                |
-| RAM             | `/proc/meminfo` + `dmidecode`         | psutil + `Win32_PhysicalMemory`               |
-| GPU / VRAM      | `nvidia-smi`, `amdgpu`, `i915`        | NVML, `nvidia-smi`, then Afterburner sensors  |
-| FPS / session   | **MangoHud** CSV logs                 | **PresentMon**; **RivaTuner (RTSS)** as a fallback, sampled every 100 ms |
-| Controllers     | `/sys/class/input` + `power_supply`   | raw HID *(Sony)*, XInput *(Xbox)*             |
+> Why 100 ms: the "lows" need a lot of data points. At one sample per second, the
+> 0.1% low would be computed from 60 values per minute and would be meaningless.
 
-> Why 100 ms on Windows: the "lows" need a lot of data points. At one sample per second,
-> the 0.1% low would be computed from 60 values per minute and would be meaningless. So
-> RTSS is sampled at the same rate as MangoHud's `log_interval`.
-
-## Enable FPS on Linux (MangoHud)
-
-> On Windows there's nothing to configure: **PresentMon**, included in the installer,
-> measures FPS, and **RivaTuner (RTSS)** takes over when it measures nothing.
-
-FPS comes from MangoHud's **CSV logs**, not from the on-screen overlay: having the
-MangoHud HUD visible in game **is not enough**, MangoHud must also *record* a log (which
-it doesn't do by default).
-
-**The easy way**: if CachyMonitor finds no log, it shows a message and an **"Enable
-MangoHud logging"** button. One click (after confirmation) adds the right lines to your
-config, with a backup (`MangoHud.conf.cachymonitor.bak`). Then restart the game.
-
-**By hand**: add this to `~/.config/MangoHud/MangoHud.conf`:
-
-```ini
-output_folder=~/.local/share/MangoHud/logs
-autostart_log=1
-log_interval=100
-log_duration=86400
-```
-
-> `log_duration`: without it, recording stops after 30 seconds and the FPS disappears.
-> You can also start recording on the fly with the `toggle_logging` key (Left Shift + F2
-> by default with GOverlay).
-
-Then launch a game with MangoHud:
-
-- **Steam**: game properties > launch options: `mangohud %command%`
-- **Directly**: `mangohud <game>`
-
-As soon as a game is running and writing a log, CachyMonitor shows the FPS automatically
-(and goes back to `—` a few seconds after the game closes).
-
-> The folders it searches can be changed at the top of the script (`FPS_LOG_DIRS`).
+On Windows there's nothing to configure for FPS: **PresentMon**, included in the
+installer, measures it, and **RivaTuner (RTSS)** takes over when it measures nothing.
 
 ## Hardware compatibility
 
 CachyMonitor aims to support **any hardware**, but not everything has been verified.
-
-**Linux**
-
-| | CPU | GPU |
-|---|---|---|
-| **AMD** | Tested (`k10temp`) | Written, untested (`amdgpu` via `/sys`) |
-| **Intel** | Written, untested (`coretemp`) | Partial, untested (`i915`/`xe`) |
-| **NVIDIA** | — | Tested (`nvidia-smi`) |
-
-**Windows 11**
 
 | | CPU | GPU |
 |---|---|---|
@@ -365,17 +227,12 @@ CachyMonitor aims to support **any hardware**, but not everything has been verif
 | **Intel** | Written, untested (via Afterburner) | Written, untested (Afterburner sensors) |
 | **NVIDIA** | — | Tested (`nvidia-smi`) |
 
-On Windows, CPU usage, RAM and the processor name don't depend on any particular
+CPU usage, RAM and the processor name don't depend on any particular
 hardware and work everywhere. On the other hand, on a non-NVIDIA card the Afterburner
 fallback shows the card under the generic name "GPU" and leaves the VRAM gauge at 0%,
 because Afterburner doesn't publish total VRAM.
 
-**Controllers, Linux**: tested with a **DualSense (PS5) over Bluetooth**. Xbox
-controllers (`xpad` / `xpadneo` drivers), Switch Pro and DualShock 4 use the same kernel
-files and should work, but haven't been tried. A controller whose driver doesn't publish
-its battery still shows up, with `—` instead of a percentage.
-
-**Controllers, Windows**: tested with a **DualSense (PS5)**, over Bluetooth **and** USB-C.
+**Controllers**: tested with a **DualSense (PS5)**, over Bluetooth **and** USB-C.
 These are two quite different cases, since Windows doesn't give the same way to read the
 controller in each. DualShock 4 support is written from the documentation but
 **untested**. **Xbox** controllers go through XInput, which publishes neither the model
@@ -386,16 +243,10 @@ nor a percentage, only four battery levels: written, untested (no Xbox controlle
 > controller to the real one, and hiding a duplicate could hide a genuine second
 > controller.
 
-**Actually verified setups**: AMD Ryzen 5 5600 + NVIDIA RTX 3060, on
-CachyOS / KDE Plasma / Wayland **and** on Windows 11 Pro 24H2 with MSI Afterburner and
-RivaTuner (RTSS 7.x).
+**Actually verified setup**: AMD Ryzen 5 5600 + NVIDIA RTX 3060, on Windows 11 Pro
+24H2 with MSI Afterburner and RivaTuner (RTSS 7.x).
 
-Everything else is written from the kernel documentation, without hardware at hand to
-run it. The app won't crash if a sensor is missing: that value just shows `—`.
-
-Note for Intel GPUs: utilisation isn't exposed in `/sys` and requires `intel_gpu_top`
-with root rights. So only the name, temperature and clock speed are read. VRAM is shared
-memory, with no dedicated counter.
+Everything else is written from the documentation, without hardware at hand to run it. The app won't crash if a sensor is missing: that value just shows `—`.
 
 ### I need your help
 
@@ -404,11 +255,10 @@ Ryzen 5 5600 + NVIDIA RTX 3060). In other words: **I have no idea how the app be
 on any hardware other than mine.**
 
 A Radeon, an Intel CPU, an integrated GPU... every setup is different, and without you
-those cases stay blind spots. **This is even more true for the new Windows 11 version**,
-which has only ever run on one machine. Your feedback is the only way for me to know how
+those cases stay blind spots. Your feedback is the only way for me to know how
 the app reacts on your hardware, and so to improve it for everyone.
 
-> **On Windows**, two diagnostic scripts are included in `scripts/`:
+> Two diagnostic scripts are included in `scripts/`:
 > `test_afterburner.py` lists every sensor Afterburner publishes on your machine, and
 > `test_rtss.py` inspects RivaTuner's shared memory. If a value stays empty for you,
 > their output will tell me why much better than a screenshot.
@@ -418,22 +268,6 @@ works for me" or "the GPU temperature shows `—`" already helps a lot. Tell me 
 and what you see. It really matters to me.
 
 **[Leave a comment (Discussions)](https://github.com/YOUNES-2-wq/cachymonitor/discussions)**
-
-<details>
-<summary>Optional: attach a detailed hardware report (Linux)</summary>
-
-If you'd like to help further, a small script generates a report of your sensors. It is
-**read-only**, **never** asks for root rights and shows **no** personal data. You can
-open and read it before running it:
-
-```bash
-cat scripts/hw-report.sh   # inspect it first
-./scripts/hw-report.sh     # then run it if you want
-```
-
-Paste its output in a comment or an
-[issue](https://github.com/YOUNES-2-wq/cachymonitor/issues).
-</details>
 
 ## License
 

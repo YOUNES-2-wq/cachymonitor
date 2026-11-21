@@ -4,7 +4,7 @@ from PySide6.QtCore import QThread, Signal
 from .config import DEFAULT_INTERVAL_MS
 from .debug import debug_exc
 from .controllers import read_controllers
-from .game_windows import make_game_reader
+from .game_windows import WindowsGameReader
 from .sensors import make_cpu_reader, read_gpu, read_ram
 
 
@@ -21,7 +21,7 @@ class Sampler(QThread):
         self._running = True
         self.interval_ms = DEFAULT_INTERVAL_MS
         self._cpu = make_cpu_reader()
-        self._game = make_game_reader()
+        self._game = WindowsGameReader()
 
     def run(self):
         self._game.start()
@@ -38,9 +38,8 @@ class Sampler(QThread):
 
             game = self._game.sample()
             if game is not None:
-                # MangoHud consigne les charges CPU/GPU ligne par ligne ; RTSS
-                # non. Dans les deux cas, les mesures système du tour en cours
-                # font l'affaire pour situer le goulot d'étranglement.
+                # Ni RTSS ni PresentMon ne donnent les charges CPU/GPU : les
+                # mesures système du tour en cours situent le goulot d'étranglement.
                 if game.get("cpu_load") is None:
                     game["cpu_load"] = data.get("cpu_pct")
                 if game.get("gpu_load") is None:

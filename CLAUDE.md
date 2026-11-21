@@ -1,43 +1,38 @@
-# CachyMonitor — notes pour Claude
+# CachyMonitor Windows — notes pour Claude
 
-Moniteur système gaming (Python + PySide6) pour Linux et Windows 11. `IS_WINDOWS` aiguille
-chaque lecteur de capteurs ; interface, thèmes, langues (dictionnaire `TRANSLATIONS`) et
-statistiques sont communs. `APP_VERSION` (dans `cachymonitor.py`) est la seule source du
-numéro de version (le build Windows la lit).
+Moniteur système gaming (Python + PySide6) pour **Windows 11 uniquement**. Dépôt issu de la
+séparation (21/11/2026) du projet CachyMonitor : la version Linux vit dans
+https://github.com/YOUNES-2-wq/cachymonitor-linux (dépôt séparé, aucun code Linux ici, et
+aucun code Windows là-bas). Ce dépôt ne mentionne Linux que par un lien dans le README.
+`APP_VERSION` (dans `cachymonitor.py`) est la seule source du numéro de version (le build
+Windows la lit).
 
-## Organisation du code (découpé le 2026-11-14, après la 1.5.1)
+## Organisation du code
 `cachymonitor.py` ne garde que le point d'entrée : `APP_VERSION`, `MainWindow`, `main()`.
-Le reste vit dans le dossier `cachymon/` (aucune logique changée, lignes déplacées) :
-`config` (constantes, `IS_WINDOWS`, `APP_ROOT`), `i18n` (TRANSLATIONS, `tr`), `theme`,
-`sensors` (CPU, RAM, GPU), `controllers`, `winshm` (mémoire partagée Afterburner/RTSS),
-`game` (statistiques + MangoHud), `mangohud_conf`, `game_windows` (RTSS, PresentMon),
-`sampler`, `widgets`, `debug`.
+Le reste vit dans `cachymon/` : `config` (constantes, `APP_ROOT`), `i18n` (TRANSLATIONS,
+`tr`), `theme`, `sensors` (CPU, RAM, GPU), `controllers` (XInput + HID), `winshm` (mémoire
+partagée Afterburner/RTSS), `winapi` (liaisons ctypes), `pawnio`, `elevation`, `game`
+(statistiques + goulot), `game_windows` (RTSS, PresentMon), `sampler`, `widgets`, `debug`.
 Pièges : une globale réécrite (`global X`) doit rester dans le module qui la définit, et
 `PRESENTMON_STATE` se lit par `presentmon_state()` (dans `game_windows`), jamais par
 `from ... import PRESENTMON_STATE`.
-Publié en **1.5.2** (Linux seulement : release GitHub non « latest », AUR ; pas d'installateur
-Windows). Vérifié sous Windows le 2026-11-14 (ruff, tests, capteurs, exe PyInstaller) ;
-première version Windows découpée = **1.6.0**, qui inverse aussi la priorité des FPS. **Lire `docs/NOTE-DECOUPAGE-1.5.2.md`**
-(carte des modules, changements de comportement, liste de vérifications Windows, dont
-`build.ps1` et PyInstaller).
 
 ## Contrôles avant une release
 - `ruff check .` (réglages dans `pyproject.toml`) et `python -m pytest -q` : doivent passer.
   Les tests (`tests/`) couvrent les calculs purs (FPS, lows, batterie Sony, couleurs,
-  traductions, lecture de log MangoHud) ; la CI GitHub (`.github/workflows/tests.yml`) les lance.
+  traductions) et PawnIO/élévation ; la CI GitHub (`.github/workflows/tests.yml`, sous
+  Windows) les lance.
 - `tests/conftest.py` isole le journal de débogage (fixture `journal_isole`) : aucun test
   n'écrit dans le vrai `%LOCALAPPDATA%\CachyMonitor\debug.log`.
 - Option `--debug` (ou `CACHYMONITOR_DEBUG=1`) : écrit les erreurs normalement avalées dans
-  `~/.cache/cachymonitor/debug.log` (Windows : `%LOCALAPPDATA%\CachyMonitor\debug.log`).
-  À demander aux testeurs Radeon/Intel avec la sortie de `scripts/hw-report.sh`.
+  `%LOCALAPPDATA%\CachyMonitor\debug.log`. À demander aux testeurs Radeon/Intel avec la
+  sortie de `scripts/test_afterburner.py`.
 
 ## Avec qui on travaille
-Younes (GitHub `YOUNES-2-wq`, AUR `younes-2`) : gamer, **pas développeur**. Toujours répondre
+Younes (GitHub `YOUNES-2-wq`) : gamer, **pas développeur**. Toujours répondre
 **en français**, expliquer simplement, demander avant les actions publiques.
 
 ## Distribution
-- **AUR** `cachymonitor` (dépôt séparé `ssh://aur@aur.archlinux.org/cachymonitor.git`,
-  PKGBUILD qui télécharge l'archive du tag GitHub) — en **1.5.2**.
 - **winget** `YOUNES-2-wq.CachyMonitor` — en **1.6.0** (#480910 fusionnée) ; **1.7.0 soumise** : [#483266](https://github.com/microsoft/winget-pkgs/pull/483266), en attente (deux installateurs, `Scope: user` et `Scope: machine` avec `/ALLUSERS`) (manifestes dans
   `packaging/winget/manifests`, procédure dans `packaging/winget/README.md`).
 - **Installateur Windows** : `packaging/windows/build.ps1` (PyInstaller en `--onedir`,
@@ -47,8 +42,7 @@ Younes (GitHub `YOUNES-2-wq`, AUR `younes-2`) : gamer, **pas développeur**. Tou
   d'installateur Windows, et le README renvoie vers `releases/latest` pour le `.exe`.
 
 ## Matériel de test (le seul vérifié)
-Ryzen 5 5600 + RTX 3060 ; CachyOS KDE Wayland et Windows 11 Pro 24H2 avec MSI Afterburner
-+ RTSS. Manette : **DualSense (PS5)**, appairée en Bluetooth, câble USB-C possible.
+Ryzen 5 5600 + RTX 3060 ; Windows 11 Pro 24H2 avec MSI Afterburner + RTSS. Manette : **DualSense (PS5)**, appairée en Bluetooth, câble USB-C possible.
 
 ## Manettes sous Windows (fait le 2026-10-02, 1.4.1)
 La carte **MANETTE** fonctionne maintenant sur les deux OS. Sous Windows, deux sources :
@@ -68,7 +62,7 @@ Trois pièges que seul le matériel a révélés, à ne pas réintroduire :
    silencieuse ne fige pas le thread de mesure.
 
 Vérifié sur la DualSense : Bluetooth 95 % en décharge, câble 100 % (la manette se déclare
-pleine dès que son circuit de charge a fini, et le pilote Linux arrondit pareil).
+pleine dès que son circuit de charge a fini).
 `scripts/test_controllers.py` montre l'énumération, le rapport brut et le décodage.
 
 **Non testé, faute de matériel** : DualShock 4, et les manettes Xbox via XInput. Le README
@@ -108,7 +102,7 @@ Younes, `python` n'est que l'alias du Microsoft Store : le vrai est `py`. Avant 
 - GPU NVIDIA : NVML d'abord, chargé par chemin complet `System32\nvml.dll` (contre le
   détournement de DLL), `nvidia-smi` en secours. Premier appel ~1,3 s (init), puis ~0 ms.
 - VRAM par `nvmlDeviceGetMemoryInfo_v2` (identique à nvidia-smi ; la v1 compte en plus
-  la mémoire réservée par le pilote), repli v1. Touche aussi Linux et Flatpak.
+  la mémoire réservée par le pilote), repli v1..
 - Validé sur le PC de Younes, avec et sans Afterburner. Seules la température et la
   conso CPU dépendent encore d'Afterburner (étape 1.7.0).
 
@@ -275,51 +269,17 @@ Younes, `python` n'est que l'alias du Microsoft Store : le vrai est `py`. Avant 
 - Faux positifs antivirus : Windows Defender a retiré CachyMonitor de sa liste (confirmé par Younes le 2026-11-14). Le signalement WDSI est clos.
 - La batterie des manettes Xbox attend une manette Xbox pour être vérifiée.
 
-## Version Flathub (en cours, 04/10/2026)
-**Règle de Flathub sur l'IA** (docs.flathub.org, "Generative AI policy", lue le 04/10/2026) :
-le manifeste ne doit contenir **aucun contenu écrit ou assisté par IA** (la divulgation
-n'y change rien) ; une IA ne doit ni ouvrir la PR de soumission ni écrire ses commits,
-descriptions ou réponses de revue ; le code de l'appli généré par IA doit être déclaré,
-avec son ampleur, et un relecteur peut refuser sans examen. **Claude n'écrit donc jamais
-le manifeste, le `metainfo.xml` ni la PR** : Younes les écrit, Claude explique les champs
-et relit ou débogue. Claude peut modifier le code de l'appli (à déclarer comme tel).
-
-**Acquis** : identifiant `io.github.YOUNES_2_wq.CachyMonitor` (confirmé : `_` devient `-`
-dans l'URL GitHub). Un Flatpak jetable (jamais à soumettre) a été construit avec le runtime
-`org.kde.Platform` 6.11 et la base `io.qt.PySide.BaseApp` 6.11 ; construction par
-`flatpak run org.flatpak.Builder --user --install --state-dir=...` (flatpak-builder n'est
-pas installé en paquet, `--state-dir` doit être sur le même disque que le dossier de build).
-
-**Résultats dans le sandbox**, vérifiés sur la RTX 3060 :
-- GPU NVIDIA : `nvidia-smi` est absent, mais l'extension NVIDIA fournit `libnvidia-ml`.
-  Corrigé en 04/10/2026 par une lecture NVML (ctypes) dans `cachymonitor.py`. OK.
-- CPU, températures, manette (DualSense), `lspci` : OK. FPS : OK avec SuperTuxKart.
-- `dmidecode` absent : la RAM (type, vitesse) restera à `—`, accepté.
-- Logs MangoHud : le Goverlay de Younes écrit dans `~/.local/share/goverlay` ; le prototype
-  a eu besoin de `--filesystem=xdg-data/goverlay:ro` (et `xdg-data/MangoHud:ro`).
-  Le bouton "Activer le logging" écrit dans `~/.config/MangoHud` : bloqué par le sandbox,
-  non testé. Un jeu Steam en Flatpak écrit ses logs dans `~/.var/app/com.valvesoftware.Steam/`.
-
-**Reste à décider/faire** (par Younes) : quelles permissions demander (Flathub veut le
-minimum et préfère les portails), écrire le manifeste, le `metainfo.xml` (captures dans
-`docs/`, `content_rating` OARS, licence MIT, liste des versions), le `.desktop` et l'icône
-renommés selon l'identifiant, tester avec `flatpak-builder-lint`, puis la PR sur
-`github.com/flathub/flathub` (branche `new-pr`) ; revue humaine de quelques jours à
-plusieurs semaines. Risque : refus à cause de la part d'IA. Prototype à désinstaller après :
-`flatpak uninstall --user io.github.YOUNES_2_wq.CachyMonitor`.
-
 ## Plan de promotion (en pause, décidé le 04/10/2026)
 Faites le 04/10/2026 : description GitHub anglaise + mots-clés ; README principal en
 anglais (`README.fr.md` pour le français) ; toutes les releases passées en anglais seul
 (Younes ne veut **qu'une langue** par release : l'anglais).
-Reste, à reprendre après Flathub :
-1. Post r/linux_gaming : appel aux testeurs Radeon/Intel, écrit en français pour sa
+Reste, à reprendre :
+1. Post r/pcgaming : appel aux testeurs Radeon/Intel, écrit en français pour sa
    relecture puis traduit. Dire ouvertement que l'appli est faite avec l'aide d'une IA.
-2. r/cachyos + forum/Discord CachyOS, GamingOnLinux, r/pcgaming (Windows), fiche
-   AlternativeTo (alternative à MSI Afterburner / MangoHud).
+2. Fiche AlternativeTo (alternative à MSI Afterburner).
 3. GIF ou vidéo de 30 s (jeu + CachyMonitor en double écran, batterie DualSense) en haut
    du README et dans les posts.
-Point de départ chiffré (03/10/2026) : 97 téléchargements Windows, 3 étoiles, 12 visiteurs
-uniques sur 14 jours, 0 vote AUR, aucune issue.
+Point de départ chiffré (03/10/2026, avant séparation) : 97 téléchargements Windows, 3 étoiles, 12 visiteurs
+uniques sur 14 jours, aucune issue.
 
 Pas d'emojis dans les textes rédigés pour Younes ou en son nom.

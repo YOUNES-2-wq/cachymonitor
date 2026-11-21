@@ -8,9 +8,9 @@ import subprocess
 import threading
 from collections import deque
 from PySide6.QtCore import QThread
-from .config import APP_ROOT, FPS_STALE_SECONDS, FREEZE_IGNORE_MS, GAME_HISTORY, GAME_WARMUP_S, IS_WINDOWS, MAX_PATH, RTSS_SHARED_MEMORY, SHM_MAX_SIZE, WIN_POLL_MS, _NO_WINDOW, asset_dir, plausible_fps
+from .config import APP_ROOT, FPS_STALE_SECONDS, FREEZE_IGNORE_MS, GAME_HISTORY, GAME_WARMUP_S, MAX_PATH, RTSS_SHARED_MEMORY, SHM_MAX_SIZE, WIN_POLL_MS, _NO_WINDOW, asset_dir, plausible_fps
 from .debug import debug_exc
-from .game import MangoHudGameReader, game_stats
+from .game import game_stats
 from .i18n import tr
 from .winshm import AB, _read_shared_memory
 
@@ -185,13 +185,13 @@ class RtssGameReader:
         if fps is None:
             return
         t = now - self._t0
-        # Mêmes exclusions que sous Linux : le tout début de session est du
+        # le tout début de session est du
         # chargement, et une image de plus d'une seconde est un jeu suspendu.
         if t < GAME_WARMUP_S or fps < 1000.0 / FREEZE_IGNORE_MS:
             return
         # Le frametime est déduit du débit d'images sur la fenêtre de 100 ms :
         # RTSS ne publie pas la durée image par image, donc les pics les plus
-        # brefs sont lissés — c'est la limite de cette source face à MangoHud.
+        # brefs sont lissés — c'est la limite de cette source.
         self._samples.append((t, fps, 1000.0 / fps))
         self._last_seen = now
 
@@ -387,8 +387,8 @@ class PresentMonGameReader:
     PresentMon écrit une ligne CSV par image présentée, toutes applications
     confondues. Un thread lit ce flux et empile les images ; le relevé de
     WIN_POLL_MS (le même _GamePoller que RivaTuner) les regroupe ensuite par
-    tranches de 100 ms. Les chiffres ont ainsi le même sens qu'avec RivaTuner et
-    MangoHud : un échantillon = un débit moyen sur 100 ms.
+    tranches de 100 ms. Les chiffres ont ainsi le même sens qu'avec RivaTuner :
+    un échantillon = un débit moyen sur 100 ms.
 
     Choix de l'application, garde-fou du bug n°10 compris :
       * on reste sur le jeu déjà suivi tant qu'il dessine, même s'il n'est plus
@@ -602,7 +602,7 @@ class PresentMonGameReader:
         if fps is None:
             return
         t = now - self._t0
-        # Même exclusion que RivaTuner et MangoHud : le début de session est
+        # Même exclusion que RivaTuner : le début de session est
         # du chargement.
         if t < GAME_WARMUP_S:
             return
@@ -701,6 +701,16 @@ class WindowsGameReader:
         return pm or rtss
 
 
-def make_game_reader():
-    """Lecteur de session adapté à la plateforme."""
-    return WindowsGameReader() if IS_WINDOWS else MangoHudGameReader()
+def no_game_text():
+    """Message « aucun jeu » adapté à l'état de PresentMon."""
+    state = presentmon_state()
+    if state == "absent":
+        return tr("No game detected — launch a game with RivaTuner (RTSS) running")
+    text = tr("No game detected — launch a game (measured by RivaTuner, or "
+              "PresentMon if RivaTuner is not running)")
+    if state == "denied":
+        text += "\n" + tr(
+            "PresentMon is not allowed to measure FPS: your account must be in "
+            "the \"Performance Log Users\" group. Reinstall CachyMonitor with "
+            "the matching option, then sign out and back in.")
+    return text

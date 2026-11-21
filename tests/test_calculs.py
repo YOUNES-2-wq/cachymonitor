@@ -7,7 +7,7 @@ import pytest
 
 from cachymon.config import plausible_fps, plausible_temp, _as_bool
 from cachymon.controllers import _sony_battery, _clean_controller_name
-from cachymon.game import _percentile, game_stats, bottleneck, MangoHudGameReader
+from cachymon.game import _percentile, game_stats, bottleneck
 from cachymon.theme import temp_role
 from cachymon.widgets import battery_role
 
@@ -131,47 +131,3 @@ def test_sony_dualshock4():
 def test_nom_de_manette_sans_prefixe_constructeur():
     assert _clean_controller_name("Sony Interactive Entertainment DualSense Wireless Controller") \
         == "DualSense Wireless Controller"
-
-
-# -- lecture d'un log MangoHud -------------------------------------------- #
-def _csv(tmp_path, lignes):
-    p = tmp_path / "monjeu_2026-01-02_03-04-05.csv"
-    p.write_text("fps,frametime,cpu_load,gpu_load,gpu_vram_used,elapsed\n"
-                 + "\n".join(lignes) + "\n")
-    return p
-
-
-def test_mangohud_nom_du_jeu():
-    assert MangoHudGameReader._game_name("/x/urban_terror_2026-07-20_12-40-15.csv") == "Urban Terror"
-
-
-def test_mangohud_ignore_chargement_et_images_nulles(tmp_path):
-    ns = 1_000_000_000
-    lignes = [f"0,0,10,10,100,{0}",              # image a 0 fps au lancement
-              f"90,11,10,10,100,{1 * ns}",       # dans les 5 s de chauffe
-              f"100,10,20,70,2048,{6 * ns}",
-              f"120,8.3,30,80,2048,{7 * ns}"]
-    r = MangoHudGameReader()
-    r._reset_for(str(_csv(tmp_path, lignes)))
-    r._consume(r._path)
-    assert [s[1] for s in r._samples] == [100.0, 120.0]
-    assert r._last["gpu_load"] == 80.0
-
-
-def test_mangohud_lecture_incrementale(tmp_path):
-    ns = 1_000_000_000
-    # 1re ligne a 0 fps : elle fixe l'origine du temps, puis la chauffe de 5 s passe.
-    p = _csv(tmp_path, ["0,0,0,0,0,0", f"100,10,20,70,2048,{6 * ns}"])
-    r = MangoHudGameReader()
-    r._reset_for(str(p))
-    r._consume(r._path)
-    assert len(r._samples) == 1
-    with open(p, "a") as f:
-        f.write(f"110,9,20,70,2048,{7 * ns}\n")
-    r._consume(r._path)
-    assert len(r._samples) == 2             # pas de doublon a la 2e lecture
-
-
-def test_mangohud_en_tete_sans_fps(tmp_path):
-    r = MangoHudGameReader()
-    assert r._parse_header("a,b,c") is None

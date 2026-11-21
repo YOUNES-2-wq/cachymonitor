@@ -27,7 +27,7 @@ import os
 import subprocess
 import sys
 
-from .config import IS_WINDOWS, app_settings, settings_int
+from .config import app_settings, settings_int
 from .debug import debug_exc
 from .debug import enabled as debug_enabled
 from . import pawnio, winapi
@@ -101,8 +101,7 @@ def confirm_elevated_start():
 def _elevation_requested():
     """La relance est demandée (case cochée, appli lancée sans droits, pas déjà
     relancée, pas désactivée). Sans effet de bord : ne touche pas au compteur."""
-    return (IS_WINDOWS
-            and ELEVATED_FLAG not in sys.argv
+    return (ELEVATED_FLAG not in sys.argv
             and os.environ.get("CACHYMONITOR_NO_ELEVATE") != "1"
             and pawnio.setting_enabled()
             and not pawnio.is_admin())
@@ -146,7 +145,7 @@ def elevated_copy():
     """True dans la copie relancée pour PawnIO : --elevated ET vraiment
     administrateur. L'option seule ne suffit pas (n'importe qui peut taper
     « CachyMonitor.exe --elevated » dans un raccourci)."""
-    return IS_WINDOWS and ELEVATED_FLAG in sys.argv and pawnio.is_admin()
+    return ELEVATED_FLAG in sys.argv and pawnio.is_admin()
 
 
 def hold_admin_instance():
@@ -302,7 +301,7 @@ def will_open_pawnio():
     # Copie relancée ou admin lancé par l'utilisateur : même règle, rien ne doit
     # l'empêcher (dossier de l'installateur, module, pilote...). Un exe copié
     # ailleurs et lancé avec --elevated n'ouvre donc pas PawnIO non plus.
-    if not (elevated_copy() or (IS_WINDOWS and pawnio.is_admin()
+    if not (elevated_copy() or (pawnio.is_admin()
                                 and pawnio.setting_in_registry())):
         return False
     return pawnio.elevation_blocker() is None

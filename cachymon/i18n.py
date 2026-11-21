@@ -30,9 +30,9 @@ TRANSLATIONS = {
         "About": "À propos",
         "About CachyMonitor": "À propos de CachyMonitor",
         "Version {version}": "Version {version}",
-        "Lightweight gaming system monitor for Linux and Windows 11: CPU, GPU, "
+        "Lightweight gaming system monitor for Windows 11: CPU, GPU, "
         "RAM, VRAM, temperatures, FPS and controller battery.":
-            "Moniteur système léger pour le jeu, sous Linux et Windows 11 : CPU, GPU, "
+            "Moniteur système léger pour le jeu, sous Windows 11 : CPU, GPU, "
             "RAM, VRAM, températures, FPS et batterie de la manette.",
         "Made by {author}, free and open source (MIT license).":
             "Créé par {author}, libre et gratuit (licence MIT).",
@@ -124,8 +124,6 @@ TRANSLATIONS = {
         # Panneau de jeu
         "IN GAME": "EN JEU",
         "AVERAGE ({win:.0f} s)": "MOYENNE ({win:.0f} s)",
-        "No game detected — launch a game with MangoHud":
-            "Aucun jeu détecté — lance un jeu avec MangoHud",
         "No game detected — launch a game with RivaTuner (RTSS) running":
             "Aucun jeu détecté — lance un jeu avec RivaTuner (RTSS) actif",
         "No game detected — launch a game (measured by RivaTuner, or PresentMon "
@@ -140,24 +138,6 @@ TRANSLATIONS = {
             "CachyMonitor avec l'option correspondante, puis déconnecte-toi et "
             "reconnecte-toi.",
         "source: {src}": "source : {src}",
-        "No log from MangoHud — logging is off. Enable it below, "
-        "or press Shift+F2 in game":
-            "Aucun log MangoHud — l'enregistrement est désactivé. Active-le "
-            "ci-dessous, ou appuie sur Maj+F2 en jeu",
-        "Enable MangoHud logging": "Activer le logging MangoHud",
-        "Enable MangoHud logging?": "Activer le logging MangoHud ?",
-        "CachyMonitor reads FPS from MangoHud log files, which MangoHud does "
-        "not write by default.\n\nThis adds autostart_log=1 to {path} "
-        "(a backup is made first). Restart your game afterwards.":
-            "CachyMonitor lit les FPS dans les logs de MangoHud, que MangoHud "
-            "n'écrit pas par défaut.\n\nCela ajoute autostart_log=1 dans {path} "
-            "(une sauvegarde est faite avant). Relance ensuite ton jeu.",
-        "Hide MangoHud overlay": "Cacher l'overlay MangoHud",
-        "Show MangoHud overlay": "Afficher l'overlay MangoHud",
-        "Logging enabled": "Logging activé",
-        "Done. Restart your game for MangoHud to pick it up.":
-            "C'est fait. Relance ton jeu pour que MangoHud en tienne compte.",
-        "Could not edit the MangoHud config": "Impossible de modifier la config MangoHud",
         "Session running": "Session en cours",
         "Last session (ended)": "Dernière session (terminée)",
         "{state} · {mins:.1f} min played · lows over the last {win:.0f} s "
@@ -197,8 +177,8 @@ _strings = {}
 def _system_language():
     """Code de langue sur deux lettres, d'après le système (défaut 'en').
 
-    Les variables d'environnement POSIX sont la référence sous Linux ; Windows
-    ne les définit pas, d'où le repli sur la locale que Qt obtient de l'OS.
+    Windows ne définit pas les variables d'environnement POSIX (LANG...), sauf
+    si l'utilisateur les pose : à défaut, on prend la locale que Qt obtient de l'OS.
     """
     for var in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
         value = os.environ.get(var)

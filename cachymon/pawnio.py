@@ -26,7 +26,7 @@ import sys
 import threading
 import time
 
-from .config import APP_ROOT, IS_WINDOWS
+from .config import APP_ROOT
 from .debug import debug_exc, debug_msg
 from .winapi import (advapi32_api, cache_final, cache_known, create_mutex,
                      hklm, kernel32_api, process_token, shell32_api)
@@ -80,8 +80,6 @@ def energy_watts(e0, e1, unit_j, seconds):
 
 
 def is_admin():
-    if not IS_WINDOWS:
-        return False
     try:
         return bool(shell32_api().IsUserAnAdmin())
     except Exception:
@@ -101,8 +99,6 @@ def token_elevation_type():
 
 
 def _read_token_type():
-    if not IS_WINDOWS:
-        return None
     try:
         from ctypes import wintypes
         advapi32 = advapi32_api()
@@ -160,8 +156,6 @@ def pawnio_dll():
     """Chemin de PawnIOLib.dll, ou None. Toujours un chemin complet dans le
     dossier d'installation du pilote, et seulement s'il est sous Program Files :
     jamais une DLL cherchée dans le dossier de l'appli ou ailleurs."""
-    if not IS_WINDOWS:
-        return None
     folders = [hklm(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO",
                      "InstallLocation")]
     if program_files():
@@ -365,7 +359,7 @@ class PawnIoCpu:
         self._state = None      # None = pas encore essayé, True = ouvert, False = indisponible
         self._failure = None
         self._lib = self._handle = self._mutex = None
-        self._k32 = kernel32_api() if IS_WINDOWS else None
+        self._k32 = kernel32_api()
         self._offset = 0.0
         self._unit = None
         self._energy = None     # (compteur, instant) du relevé précédent

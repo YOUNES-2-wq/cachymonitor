@@ -3,11 +3,11 @@
 from collections import deque
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QPainter, QColor, QPainterPath, QPen, QBrush, QFont, QLinearGradient
-from PySide6.QtWidgets import QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QSizePolicy, QPushButton, QMessageBox
-from .config import DEFAULT_FPS_TARGET, GAME_WINDOW_S, HISTORY, IS_WINDOWS
+from PySide6.QtWidgets import QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QSizePolicy
+from .config import DEFAULT_FPS_TARGET, GAME_WINDOW_S, HISTORY
 from .game import bottleneck
 from .i18n import tr
-from .mangohud_conf import enable_mangohud_logging, mangohud_conf_path, mangohud_hud_hidden, mangohud_logging_enabled, no_game_text, set_mangohud_hud_hidden
+from .game_windows import no_game_text
 from .theme import col
 
 
@@ -375,21 +375,6 @@ class GamePanel(QFrame):
         self.status.setWordWrap(True)
         lay.addWidget(self.status)
 
-        # Linux : propose d'activer le logging MangoHud quand il est coupé
-        self.enable_btn = QPushButton(tr("Enable MangoHud logging"))
-        self.enable_btn.setObjectName("optButton")
-        self.enable_btn.setCursor(Qt.PointingHandCursor)
-        self.enable_btn.clicked.connect(self._enable_logging)
-        lay.addWidget(self.enable_btn, 0, Qt.AlignCenter)
-
-        # Linux : afficher/cacher le HUD MangoHud (les logs continuent)
-        self.hud_btn = QPushButton()
-        self.hud_btn.setObjectName("optButton")
-        self.hud_btn.setCursor(Qt.PointingHandCursor)
-        self.hud_btn.clicked.connect(self._toggle_hud)
-        self.hud_btn.setVisible(not IS_WINDOWS)
-        lay.addWidget(self.hud_btn, 0, Qt.AlignCenter)
-        self._refresh_hud_btn()
         self._refresh_idle()
 
         self.retheme()
@@ -404,47 +389,12 @@ class GamePanel(QFrame):
             (self.s_avg, "AVERAGE ({win:.0f} s)"),
         ):
             box.cap.setText(tr(key).format(win=GAME_WINDOW_S))
-        self.enable_btn.setText(tr("Enable MangoHud logging"))
-        self._refresh_hud_btn()
         if self.idle:
             self._refresh_idle()
 
     def _refresh_idle(self):
-        """Texte « aucun jeu » + bouton d'aide (seulement si le logging est coupé)."""
+        """Texte « aucun jeu » (selon l'état de PresentMon)."""
         self.status.setText(no_game_text())
-        self.enable_btn.setVisible(
-            self.idle and not IS_WINDOWS and not mangohud_logging_enabled())
-
-    def _refresh_hud_btn(self):
-        self.hud_btn.setText(tr("Show MangoHud overlay") if mangohud_hud_hidden()
-                             else tr("Hide MangoHud overlay"))
-
-    def _toggle_hud(self):
-        try:
-            set_mangohud_hud_hidden(not mangohud_hud_hidden())
-        except OSError as e:
-            QMessageBox.warning(self, tr("Could not edit the MangoHud config"), str(e))
-        self._refresh_hud_btn()
-
-    def _enable_logging(self):
-        path = mangohud_conf_path()
-        ask = QMessageBox.question(
-            self, tr("Enable MangoHud logging?"),
-            tr("CachyMonitor reads FPS from MangoHud log files, which MangoHud "
-               "does not write by default.\n\nThis adds autostart_log=1 to {path} "
-               "(a backup is made first). Restart your game afterwards."
-               ).format(path=path))
-        if ask != QMessageBox.Yes:
-            return
-        try:
-            enable_mangohud_logging()
-        except OSError as e:
-            QMessageBox.warning(self, tr("Could not edit the MangoHud config"), str(e))
-            return
-        QMessageBox.information(
-            self, tr("Logging enabled"),
-            tr("Done. Restart your game for MangoHud to pick it up."))
-        self._refresh_idle()
 
     def retheme(self):
         self.dot.setStyleSheet(f"color:{col('fps')}; font-size:12px;")

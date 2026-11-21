@@ -56,7 +56,6 @@ def relance_possible(monkeypatch):
     """Toutes les conditions de la relance réunies ; chaque test en retire une."""
     monkeypatch.setattr(sys, "argv", ["cachymonitor.py"])
     monkeypatch.delenv("CACHYMONITOR_NO_ELEVATE", raising=False)
-    monkeypatch.setattr(elevation, "IS_WINDOWS", True)
     monkeypatch.setattr(pawnio, "setting_enabled", lambda: True)
     monkeypatch.setattr(elevation, "_previous_relaunch_failed", lambda: False)
     monkeypatch.setattr(pawnio, "elevation_blocker", lambda: None)
@@ -129,7 +128,6 @@ def test_debogage_transmis_a_la_copie_elevee(monkeypatch):
     assert args == ["--debug", "--elevated"]
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="chemins Windows")
 def test_dossier_protege(monkeypatch):
     monkeypatch.setattr(pawnio, "program_files", lambda: r"C:\Program Files")
     # Les variables d'environnement, modifiables sans droits, ne comptent pas.
@@ -191,7 +189,6 @@ def test_decalage_tctl_par_nom_complet(monkeypatch):
         assert pawnio._tctl_offset() == expected, name
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API Windows")
 def test_environnement_administrateur(monkeypatch):
     # En administrateur, aucune variable posée par l'utilisateur ne doit désigner
     # un programme, une DLL ou un dossier.
@@ -266,7 +263,6 @@ def test_pas_de_boucle_si_la_copie_elevee_plante(monkeypatch):
     # Copie élevée arrivée à sa fenêtre : rien à signaler la fois suivante.
     s[key] = 1
     monkeypatch.setattr(sys, "argv", ["CachyMonitor.exe", elevation.ELEVATED_FLAG])
-    monkeypatch.setattr(elevation, "IS_WINDOWS", True)
     # --elevated sans droits (raccourci tapé à la main) : ne remet pas le compteur à 0.
     monkeypatch.setattr(pawnio, "is_admin", lambda: False)
     elevation.confirm_elevated_start()
@@ -347,7 +343,6 @@ def test_environnement_sans_dossier_windows():
     assert "Users" not in env["PATH"]
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 def test_environnement_qt_de_l_appli():
     # Les réglages Qt posés par PyInstaller sont refaits depuis le dossier de
     # l'appli, pas repris de l'utilisateur.
@@ -379,7 +374,6 @@ class _FauxKernel32:
         self.fermes.append(handle)
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 @pytest.mark.parametrize("handle, erreur, existe", [
     (7, 0, True),       # ouvert : il existe
     (None, 5, True),    # accès refusé : celui d'une copie admin, il existe
@@ -466,7 +460,6 @@ def test_journal_une_seule_premiere_ecriture(tmp_path, monkeypatch):
 
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 def test_dll_trop_ancienne_est_definitive(ouverture_demandee, tmp_path):
     # Fonction manquante dans PawnIOLib.dll (vieille version) : pas d'essais en boucle.
     module = tmp_path / "m.bin"
@@ -483,11 +476,9 @@ def test_dll_trop_ancienne_est_definitive(ouverture_demandee, tmp_path):
 
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 def test_admin_avec_la_case_environnement_durci(monkeypatch):
     # Lancé en admin par l'utilisateur, case cochée : PawnIO sera ouvert, donc
     # même protection que la copie relancée.
-    monkeypatch.setattr(elevation, "IS_WINDOWS", True)
     monkeypatch.setattr(pawnio, "is_admin", lambda: True)
     monkeypatch.setattr(sys, "argv", ["CachyMonitor.exe"])
     monkeypatch.setattr(pawnio, "setting_in_registry", lambda: True)
@@ -556,7 +547,6 @@ def test_processeur_illisible_pas_garde(monkeypatch):
     assert pawnio.ryzen_cpu()           # lu une fois : gardé
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="appel Windows réel")
 def test_is_admin_reel():
     assert pawnio.is_admin() in (True, False)
 
@@ -565,7 +555,6 @@ def test_is_admin_reel():
 def test_admin_hors_program_files_n_ouvre_pas_pawnio(monkeypatch):
     # Admin lancé par l'utilisateur, case cochée, mais exe hors de Program Files :
     # pas de PawnIO (PresentMon et le pilote ne tournent en admin que protégés).
-    monkeypatch.setattr(elevation, "IS_WINDOWS", True)
     monkeypatch.setattr(sys, "argv", ["CachyMonitor.exe"])
     monkeypatch.setattr(pawnio, "is_admin", lambda: True)
     monkeypatch.setattr(pawnio, "setting_in_registry", lambda: True)
@@ -596,7 +585,6 @@ def test_import_ne_durcit_rien(monkeypatch):
 
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API et chemins Windows")
 def test_dossier_d_installation_exact(monkeypatch, tmp_path):
     # Sous Program Files ne suffit pas : il faut le dossier inscrit par notre
     # installateur (HKLM), pas un sous-dossier laissé modifiable par un autre logiciel.
@@ -655,7 +643,6 @@ def test_blocker_jeton_illisible_n_est_pas_garde(monkeypatch):
     pawnio.elevation_blocker.cache_clear()
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="appel Windows réel")
 def test_verrou_partage_est_ouvert_a_tous():
     # Le verrou Access_PCI créé par nous (souvent en administrateur) doit donner
     # l'accès complet à « Tout le monde » (WD), sinon les autres outils sont bloqués.
@@ -708,7 +695,6 @@ def test_presentmon_variable_ignoree_en_admin(monkeypatch, tmp_path):
     assert game_windows.find_presentmon() != str(faux)
 
 
-@pytest.mark.skipif(not sys.platform.startswith("win"), reason="API Windows")
 def test_copie_relancee_durcie_meme_si_pawnio_refuse(monkeypatch):
     # La copie relancée tourne en administrateur : son environnement est nettoyé
     # même si, au dernier moment, PawnIO est refusé (registre illisible...). Mais
@@ -887,14 +873,12 @@ def test_journal_en_administrateur(monkeypatch):
     # En admin : jamais de fichier (le dossier de l'utilisateur ne doit pas être
     # écrit avec les droits administrateur).
     from cachymon import debug
-    monkeypatch.setattr(debug, "IS_WINDOWS", True)
     monkeypatch.setattr(pawnio, "is_admin", lambda: True)
     assert debug.log_path() is None
     monkeypatch.setattr(pawnio, "is_admin", lambda: False)
     assert debug.log_path() is not None
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="appels Windows réels")
 def test_appels_windows_reels():
     # Les liaisons ctypes partagées (kernel32_api, verrous nommés) marchent vraiment.
     import os

@@ -2,7 +2,7 @@
 
 import time
 
-from .config import AB_SHARED_MEMORY, IS_WINDOWS
+from .config import AB_SHARED_MEMORY
 from .debug import debug_exc
 
 
@@ -61,8 +61,6 @@ def _read_shared_memory(names, size_from_header):
     Les octets renvoyés commencent à l'en-tête : l'appelant peut le relire depuis
     le début du résultat, sans qu'on ait à le lui repasser séparément.
     """
-    if not IS_WINDOWS:
-        return None
     try:
         import ctypes
         FILE_MAP_READ = 0x0004

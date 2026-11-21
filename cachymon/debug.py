@@ -15,8 +15,6 @@ import threading
 import time
 import traceback
 
-from .config import IS_WINDOWS
-
 _enabled = None
 _seen = set()
 _started = []
@@ -26,21 +24,18 @@ _write_lock = threading.Lock()
 
 
 def log_path():
-    """Fichier du journal, dans le dossier de cache de l'utilisateur, ou None.
+    """Fichier du journal, dans %LOCALAPPDATA%/CachyMonitor, ou None.
 
     En administrateur (copie relancée pour PawnIO, ou appli lancée ainsi par
     l'utilisateur), jamais de fichier : le dossier de l'utilisateur lui appartient,
     et un programme ordinaire pourrait y glisser un lien qui ferait écraser un
     autre fichier avec les droits administrateur. Le journal reste alors à la
     console (s'il y en a une)."""
-    if IS_WINDOWS:
-        from . import pawnio    # import local : pawnio importe ce module
-        if pawnio.is_admin():
-            return None
-        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-        return os.path.join(base, "CachyMonitor", "debug.log")
-    base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
-    return os.path.join(base, "cachymonitor", "debug.log")
+    from . import pawnio    # import local : pawnio importe ce module
+    if pawnio.is_admin():
+        return None
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return os.path.join(base, "CachyMonitor", "debug.log")
 
 
 _log_path_cell = []

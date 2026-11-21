@@ -16,8 +16,6 @@ dist/
 # Sorties des scripts de diagnostic : propres a une machine, pas a versionner.
 scripts/*_result.txt
 
-# Prototype Flatpak jetable (jamais a soumettre : le manifeste Flathub est ecrit par Younes)
-io.github.*.yml
 .pytest_cache/
 .ruff_cache/
 

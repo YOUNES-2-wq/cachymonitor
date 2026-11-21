@@ -2,7 +2,6 @@
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
-from .config import IS_WINDOWS
 from .i18n import DEFAULT_LANG, set_language
 
 
@@ -96,18 +95,17 @@ def _windows_light_theme():
 def system_theme():
     """Thème du bureau, via Qt. Replié sur 'sombre' si le bureau ne dit rien.
 
-    Qt 6.5+ rapporte le réglage sur les deux plateformes. Quand il répond
-    « inconnu » sous Windows, le registre donne la réponse directement.
+    Qt 6.5+ rapporte le réglage. Quand il répond « inconnu », le registre
+    donne la réponse directement.
     """
     scheme = QApplication.instance().styleHints().colorScheme()
     if scheme == Qt.ColorScheme.Light:
         return "clair"
     if scheme == Qt.ColorScheme.Dark:
         return "sombre"
-    if IS_WINDOWS:
-        light = _windows_light_theme()
-        if light is not None:
-            return "clair" if light else "sombre"
+    light = _windows_light_theme()
+    if light is not None:
+        return "clair" if light else "sombre"
     return "sombre"
 
 
