@@ -8,8 +8,9 @@ fusionnée le 19/09/2026) : l'installation tient en une ligne. La 1.4.1 a suivi
 ([#445910](https://github.com/microsoft/winget-pkgs/pull/445910)), la 1.5.0
 aussi ([#474985](https://github.com/microsoft/winget-pkgs/pull/474985)) ; la 1.5.1
 ([#480160](https://github.com/microsoft/winget-pkgs/pull/480160)) et la 1.6.0
-([#480910](https://github.com/microsoft/winget-pkgs/pull/480910)) aussi ; la 1.7.0 est
-soumise dans [microsoft/winget-pkgs#483266](https://github.com/microsoft/winget-pkgs/pull/483266).
+([#480910](https://github.com/microsoft/winget-pkgs/pull/480910)) aussi ; la 1.7.0
+([#483266](https://github.com/microsoft/winget-pkgs/pull/483266)) aussi ; la 1.7.1 est
+soumise dans [microsoft/winget-pkgs#485890](https://github.com/microsoft/winget-pkgs/pull/485890).
 Depuis la 1.7.0 le manifeste a deux installateurs (`Scope: user` et `Scope: machine`) :
 `winget install YOUNES-2-wq.CachyMonitor --scope machine` installe dans Program Files, ce
 qu'exige l'option PawnIO.

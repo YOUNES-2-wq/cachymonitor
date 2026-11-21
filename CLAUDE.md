@@ -34,8 +34,13 @@ Younes (GitHub `YOUNES-2-wq`) : gamer, **pas développeur**. Toujours répondre
 **en français**, expliquer simplement, demander avant les actions publiques.
 
 ## Distribution
-- **winget** `YOUNES-2-wq.CachyMonitor` — en **1.6.0** (#480910 fusionnée) ; **1.7.0 soumise** : [#483266](https://github.com/microsoft/winget-pkgs/pull/483266), en attente (deux installateurs, `Scope: user` et `Scope: machine` avec `/ALLUSERS`) (manifestes dans
-  `packaging/winget/manifests`, procédure dans `packaging/winget/README.md`).
+- **winget** `YOUNES-2-wq.CachyMonitor` — en **1.7.0** (#483266 fusionnée) ; **1.7.1 soumise** :
+  [#485890](https://github.com/microsoft/winget-pkgs/pull/485890), en attente (deux installateurs,
+  `Scope: user` et `Scope: machine` avec `/ALLUSERS`). Manifestes dans `packaging/winget/manifests`,
+  procédure dans `packaging/winget/README.md`. Pour la version suivante : PARTIR du manifeste
+  publié (`gh api repos/microsoft/winget-pkgs/contents/manifests/y/YOUNES-2-wq/CachyMonitor/<v>/...`),
+  changer version/URL/SHA256/ReleaseDate/ReleaseNotes, `winget validate`, puis
+  `wingetcreate submit --token "$(gh auth token)" packaging/winget/manifests`.
 - **Installateur Windows** : `packaging/windows/build.ps1` (PyInstaller en `--onedir`,
   puis Inno Setup). Le mode `--onefile` a été abandonné en 1.4.1 : son bootloader
   auto-extractible déclenchait des faux positifs antivirus heuristiques.
@@ -266,7 +271,7 @@ Younes, `python` n'est que l'alias du Microsoft Store : le vrai est `py`. Avant 
   (0,1 °C, ~1 W), avec et sans Afterburner, eFootball (anti-triche) OK. **Intel non pris
   en charge** (module IntelMSR jamais essayé, pas de matériel).
 
-## Mise à jour intégrée (écrite le 21/11/2026, pas encore publiée : sortira avec la 1.7.1)
+## Mise à jour intégrée (1.7.1, release GitHub publiée le 21/11/2026)
 - `cachymon/updater.py` (sans Qt, testé) : API GitHub `releases/latest`, ignore brouillons et
   préversions ; l'installateur `CachyMonitor-Setup-X.Y.Z.exe` n'est jugé installable que
   s'il vient de https://github.com et que GitHub publie son `digest` sha256 (comparé au

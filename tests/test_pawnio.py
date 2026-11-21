@@ -481,6 +481,9 @@ def test_admin_avec_la_case_environnement_durci(monkeypatch):
     # même protection que la copie relancée.
     monkeypatch.setattr(pawnio, "is_admin", lambda: True)
     monkeypatch.setattr(sys, "argv", ["CachyMonitor.exe"])
+    # Rien n'empêche le mode administrateur : sans cela, le résultat dépendrait du PC
+    # (Ryzen, PawnIO installé, module à côté), et le test échouait sur la CI GitHub.
+    monkeypatch.setattr(pawnio, "elevation_blocker", lambda: None)
     monkeypatch.setattr(pawnio, "setting_in_registry", lambda: True)
     assert elevation.will_open_pawnio()
     monkeypatch.setattr(pawnio, "setting_in_registry", lambda: False)

@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.28.0.schema.json
 
 PackageIdentifier: YOUNES-2-wq.CachyMonitor
-PackageVersion: 1.7.0
+PackageVersion: 1.7.1
 PackageLocale: fr-FR
 Publisher: YOUNES-2-wq
 PublisherUrl: https://github.com/YOUNES-2-wq
@@ -36,12 +36,12 @@ Tags:
 - system-monitor
 - temperature
 ReleaseNotes: |-
-  CachyMonitor 1.7.0 : température et consommation du CPU sans MSI Afterburner (AMD Ryzen, Windows)
-  - Nouveau, optionnel et décoché par défaut : température et consommation du CPU par PawnIO, un petit pilote open source signé par Microsoft. Aucune écriture dans le processeur.
-  - Pour l'activer : installer CachyMonitor pour tous les utilisateurs (winget install YOUNES-2-wq.CachyMonitor --scope machine), installer PawnIO (winget install namazso.PawnIO), puis cocher « Température CPU par PawnIO » dans les Options. Effet au lancement suivant.
-  - Contrepartie : CachyMonitor se relance alors en administrateur et Windows demande une confirmation à chaque lancement. Refuser ouvre l'appli normalement (Afterburner en secours).
-  - Nouveau bouton « À propos » dans les Options. Les processeurs Intel ne sont pas encore pris en charge par cette méthode.
-ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.7.0
+  CachyMonitor 1.7.1 : mise à jour intégrée à l'application (Windows)
+  - Quand une version plus récente existe, une barre apparaît en haut de la fenêtre. « Mettre à jour » télécharge l'installateur, vérifie son empreinte SHA-256 contre celle publiée par GitHub, l'installe en silence et relance l'application.
+  - La vérification a lieu quelques secondes après le démarrage, puis toutes les 6 heures. Elle demande seulement à GitHub s'il existe une version plus récente : rien sur le PC n'est envoyé. Activée par défaut ; case « Rechercher les mises à jour au démarrage » dans les Options pour la désactiver.
+  - En mode administrateur (PawnIO), la barre demande de relancer sans droits administrateur avant de mettre à jour : rien n'est téléchargé ni exécuté avec des droits élevés.
+  - Les versions jusqu'à la 1.7.0 n'ont pas cette barre : cette mise à jour se fait une fois par winget ou par l'installateur, les suivantes pourront se faire depuis l'application.
+ReleaseNotesUrl: https://github.com/YOUNES-2-wq/cachymonitor/releases/tag/v1.7.1
 InstallationNotes: |-
   Notes importantes après l'installation :
   - Si vous avez activé l'option « Allow PresentMon » lors de l'installation, veuillez fermer votre session Windows et vous reconnecter une fois pour appliquer les droits du groupe « Performance Log Users ».
