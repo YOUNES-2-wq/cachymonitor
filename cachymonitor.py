@@ -73,7 +73,7 @@ from cachymon.updatebar import UpdateBar  # noqa: E402
 from cachymon.widgets import ControllerPanel, GamePanel, GaugeCard  # noqa: E402
 
 
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.7.1"
 APP_AUTHOR = "YOUNES-2-wq"
 APP_URL = "https://github.com/YOUNES-2-wq/cachymonitor"
 

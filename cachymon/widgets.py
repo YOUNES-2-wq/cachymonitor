@@ -429,7 +429,6 @@ class GamePanel(QFrame):
 
     def update_game(self, g, target):
         self.idle = False
-        self.enable_btn.hide()
         self.game.setText(g["name"])
 
         if g["live"] and g["fps"] is not None:
