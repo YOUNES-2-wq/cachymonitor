@@ -113,3 +113,37 @@ def test_anneau_suit_les_petits_ecarts(fenetre):
     for i in range(1, 200):
         jauge.set(33.0 + i * 0.033, "", "")
     assert abs(jauge.shown - jauge.percent) <= 0.5
+
+
+def test_la_fenetre_reprend_sa_taille_apres_les_options(fenetre):
+    from PySide6.QtWidgets import QApplication
+
+    def attendre():
+        for _ in range(5):
+            QApplication.processEvents()
+
+    fenetre.opt_button.setChecked(False)
+    fenetre.compact.setChecked(False)
+    fenetre.show()
+    attendre()
+    fenetre.resize(560, fenetre.minimumSizeHint().height() + 10)
+    attendre()
+    depart = fenetre.height()
+    fenetre.opt_button.setChecked(True)
+    fenetre.look_button.setChecked(True)
+    attendre()
+    assert fenetre.height() > depart
+    fenetre.compact.setChecked(True)
+    attendre()
+    fenetre.look_button.setChecked(False)
+    fenetre.opt_button.setChecked(False)
+    attendre()
+    assert fenetre.height() == fenetre.minimumSizeHint().height() < depart
+    fenetre.opt_button.setChecked(True)
+    attendre()
+    fenetre.compact.setChecked(False)
+    attendre()
+    fenetre.opt_button.setChecked(False)
+    attendre()
+    assert fenetre.height() == depart
+    fenetre.hide()

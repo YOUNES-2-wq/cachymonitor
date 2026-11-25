@@ -63,7 +63,7 @@ from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer  # noqa: E402
 from PySide6.QtGui import (QBrush, QColor, QIcon, QImage, QLinearGradient,  # noqa: E402
                            QPainter, QPalette, QPen, QPixmap, QRadialGradient)
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, QCheckBox, QSpinBox, QComboBox, QToolButton, QListView, QMessageBox, QSlider  # noqa: E402
-from cachymon.config import DEFAULT_FPS_TARGET, DEFAULT_INTERVAL_MS, _as_bool, app_settings, asset_dir  # noqa: E402
+from cachymon.config import DEFAULT_FPS_TARGET, DEFAULT_INTERVAL_MS, _as_bool, app_settings, asset_dir, settings_int  # noqa: E402
 from cachymon.pawnio import (PAWNIO, elevation_blocker, env_hardened, is_admin,  # noqa: E402
                              SETTING_KEY as PAWNIO_SETTING,
                              setting_enabled as pawnio_setting_enabled)
@@ -124,6 +124,10 @@ class MainWindow(QWidget):
         self.resize(560, 720)
         self.theme_mode = DEFAULT_THEME
         self.lang_mode = DEFAULT_LANG
+        # Hauteur voulue sans le panneau Options (voir _fit_height).
+        self._base_height = 720
+        self._normal_size = None           # taille d'avant le mode compact
+        self._was_compact = False
         self._bg_timer = QTimer(self)      # fait dériver les halos du fond (thème Claude)
         self._bg_timer.setInterval(100)    # 10 images/s : la dérive est très lente
         self._bg_timer.timeout.connect(self.update)
@@ -388,20 +392,43 @@ class MainWindow(QWidget):
     # -- disposition des cartes ---------------------------------------------- #
     def _on_layout_option(self, _checked=False):
         """Mode compact ou choix des cartes modifié : on replace tout."""
-        was_compact = getattr(self, "_was_compact", False)
+        panels_open = not self.options.isHidden()
+        normal = QSize(self.width(), self._base_height if panels_open else self.height())
         self._apply_layout()
         compact = self.compact.isChecked()
-        if compact == was_compact:
+        if compact == self._was_compact:
             return
         self._was_compact = compact
         if self.isMaximized() or self.isFullScreen():
             return
         if compact:
-            self._normal_size = self.size()      # pour la retrouver en quittant le compact
-            QTimer.singleShot(0, lambda: self.resize(440, self.minimumSizeHint().height()))
+            self._normal_size = normal       # pour la retrouver en quittant le compact
+            QTimer.singleShot(0, self._shrink_to_compact)
         else:
-            size = getattr(self, "_normal_size", None)
-            QTimer.singleShot(0, lambda: self.resize(size or QSize(560, 720)))
+            size = self._normal_size or QSize(560, 720)
+            self._base_height = size.height()
+            QTimer.singleShot(0, lambda: self._fit_height(size.width()))
+
+    def _shrink_to_compact(self):
+        """Plus petite taille du mode compact, mesurée sans le panneau Options (il
+        est ouvert au moment où l'on coche la case)."""
+        self.layout().activate()
+        panel = 0
+        if not self.options.isHidden():
+            panel = self.options.sizeHint().height() + self.layout().spacing()
+        self._base_height = self.minimumSizeHint().height() - panel
+        self._fit_height(440)
+
+    def _fit_height(self, width=None):
+        """Remet la fenêtre à sa hauteur sans panneau ; avec les Options ouvertes,
+        elle n'est agrandie que de ce qu'il faut pour tout montrer."""
+        if self.isMaximized() or self.isFullScreen():
+            return
+        self.layout().activate()
+        height = self._base_height
+        if not self.options.isHidden():
+            height = max(height, self.minimumSizeHint().height())
+        self.resize(width or self.width(), height)
 
     def _apply_layout(self):
         """Place les cartes cochées (jauges sur deux colonnes, puis manettes et
@@ -444,9 +471,16 @@ class MainWindow(QWidget):
     def _toggle_look(self, shown):
         self.look.setVisible(shown)
         self._look_text()
+        if self.isVisible():
+            QTimer.singleShot(0, self._fit_height)
 
     def _toggle_options(self, shown):
+        if (shown and self.options.isHidden() and self.isVisible()
+                and not (self.isMaximized() or self.isFullScreen())):
+            self._base_height = self.height()
         self.options.setVisible(shown)
+        if self.isVisible():
+            QTimer.singleShot(0, self._fit_height)
         if shown:
             # PawnIO a pu être installé (ou retiré, ou le module remplacé) depuis
             # le démarrage : la case est réévaluée à chaque ouverture. Coût
@@ -999,6 +1033,7 @@ class MainWindow(QWidget):
         geo = s.value("geometry")
         if geo is not None:
             self.restoreGeometry(geo)
+        self._base_height = settings_int(s, "base_height") or self.height()
 
     def _save_settings(self):
         s = app_settings()
@@ -1016,6 +1051,8 @@ class MainWindow(QWidget):
         for key, box in self.card_boxes.items():
             s.setValue("show_" + key, box.isChecked())
         s.setValue("geometry", self.saveGeometry())
+        s.setValue("base_height",
+                   self.height() if self.options.isHidden() else self._base_height)
 
     def closeEvent(self, e):
         self._save_settings()
@@ -1077,6 +1114,8 @@ def build_palette():
 
 def build_style():
     """Feuille de style du thème actif (regénérée à chaque changement)."""
+    muted = QColor(col("muted"))
+    off = "rgba(%d,%d,%d,100)" % (muted.red(), muted.green(), muted.blue())
     return f"""
 QWidget {{ background: {col('bg')}; color: {col('text')}; font-family: 'Inter','Noto Sans',sans-serif; font-size: 13px; }}
 /* Sans fond transparent, chaque libellé peint un rectangle de la couleur du
@@ -1123,7 +1162,10 @@ QCheckBox::indicator:checked {{ background: {col('cpu')}; border-color: {col('cp
 QSlider::groove:horizontal {{ height: 4px; background: {col('border')}; border-radius: 2px; }}
 QSlider::sub-page:horizontal {{ background: {col('cpu')}; border-radius: 2px; }}
 QSlider::handle:horizontal {{ background: {col('cpu')}; width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; }}
-QSlider::sub-page:horizontal:disabled, QSlider::handle:horizontal:disabled {{ background: {col('muted')}; }}
+QSlider::sub-page:horizontal:disabled, QSlider::handle:horizontal:disabled {{ background: {off}; }}
+QLabel:disabled, QCheckBox:disabled, QComboBox:disabled {{ color: {off}; }}
+QCheckBox::indicator:disabled {{ border-color: {off}; }}
+QCheckBox::indicator:checked:disabled {{ background: {off}; border-color: {off}; }}
 """ + (_GLASS_STYLE.format(accent=col('cpu'), text=col('text'), card=col('card'), border=col('border'),
                           top=int(12 + 40 * glass_level()), bot=int(5 + 16 * glass_level()),
                           edge=int(14 + 40 * glass_level()),
