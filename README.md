@@ -18,15 +18,18 @@ Or **[download the Windows installer (CachyMonitor-Setup.exe)](https://github.co
 > Independent community project, made by a CachyOS user. **Not affiliated with the
 > official CachyOS team**; the name is just a nod to the distribution.
 
-![CachyMonitor, dark theme](docs/screenshot.png)
+![CachyMonitor, Claude theme, during a game](docs/theme-claude.png)
 
-*CPU / GPU / RAM / VRAM gauges with temperatures and trend graphs. At the bottom, the
-session statistics: FPS, 1% low, 0.1% low, frametime and CPU/GPU bottleneck.*
+*Claude theme during a game: CPU / GPU / RAM / VRAM gauges with temperatures and trend graphs,
+controller battery, then FPS, 1% low, 0.1% low, frametime and CPU/GPU bottleneck.*
 
-![CachyMonitor, light theme with the Options panel open](docs/screenshot-clair.png)
+![CachyMonitor, black OLED theme](docs/theme-oled.png)
 
-*Light theme with the Options panel open: refresh interval, FPS target, theme (light /
-dark / system), language and always-on-top.*
+*Black (OLED) theme.*
+
+![CachyMonitor, Nord Light theme](docs/theme-nord-light.png)
+
+*Nord Light theme.*
 
 ![CachyMonitor on a second screen during a game](docs/double-ecran.jpg)
 
@@ -66,7 +69,10 @@ It is a companion window, separate from the game, that brings together in one in
   dependency);
 - your **controller**: model, wired or Bluetooth connection and battery level, so it
   doesn't die on you mid-game;
-- a **light or dark theme**, chosen by you or following your desktop automatically.
+- **22 themes**, dark and light, or following your desktop automatically: Windows 11 (uses
+  your accent colour), Claude (frosted glass with an animated background), Synthwave,
+  Cyberpunk, Dracula, Nord, Catppuccin and more;
+- a **compact mode** and the choice of the cards to show (**Options > Appearance**).
 
 The building blocks already existed (RivaTuner, PresentMon...), but as far as I
 know nobody had put them together into a **companion dashboard built for gaming**. That's

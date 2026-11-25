@@ -12,7 +12,8 @@ pytest.importorskip("PySide6")
 
 
 @pytest.fixture(scope="module")
-def fenetre():
+def fenetre(tmp_path_factory):
+    from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication
     import cachymonitor
     app = QApplication.instance() or QApplication([])
@@ -22,6 +23,9 @@ def fenetre():
     # couperait la session de l'appli installée sur le PC de test.
     mp = pytest.MonkeyPatch()
     mp.setattr(cachymonitor.Sampler, "start", lambda self: None)
+    # Réglages dans un fichier à part : jamais ceux du registre.
+    ini = str(tmp_path_factory.mktemp("reglages") / "test.ini")
+    mp.setattr(cachymonitor, "app_settings", lambda: QSettings(ini, QSettings.IniFormat))
     win = cachymonitor.MainWindow()
     yield win
     win.update_bar.cancel()
@@ -54,3 +58,58 @@ def test_releve_avec_jeu_affiche_fps_et_nom(fenetre, n):
 def test_retour_au_jeu_absent(fenetre):
     fenetre.on_sample(_releve(None))
     assert fenetre.game.game.text() == ""
+
+
+def _theme(win, mode):
+    from cachymon.theme import THEME_MODES
+    win.theme.setCurrentIndex(THEME_MODES.index(mode))
+
+
+def _jeu():
+    from cachymon.game import game_stats
+    return game_stats([(i * 0.1, 120.0, 8.0) for i in range(50)], True, "Jeu")
+
+
+def test_chaque_theme_avec_et_sans_jeu(fenetre):
+    from cachymon.theme import THEME_MODES
+    for mode in THEME_MODES:
+        _theme(fenetre, mode)
+        for releve in (_releve(_jeu()), _releve(None)):
+            fenetre.on_sample(releve)
+            assert fenetre.grab().toImage().pixelColor(2, 2).alpha() == 255, mode
+
+
+def test_mode_compact_et_choix_des_cartes(fenetre):
+    fenetre.compact.setChecked(True)
+    fenetre.on_sample(_releve(_jeu()))
+    assert fenetre.game.ft_graph.isHidden() and fenetre.controllers.isHidden()
+    assert fenetre.game.status.isHidden()
+    fenetre.on_sample(_releve(None))
+    assert not fenetre.game.status.isHidden()      # aucun jeu : on dit pourquoi
+    fenetre.compact.setChecked(False)
+    assert not fenetre.game.ft_graph.isHidden() and not fenetre.controllers.isHidden()
+    for box in fenetre.card_boxes.values():
+        box.setChecked(False)
+    fenetre.on_sample(_releve(_jeu()))
+    assert fenetre.cpu.isHidden() and fenetre.game.isHidden()
+    for box in fenetre.card_boxes.values():
+        box.setChecked(True)
+    assert not fenetre.cpu.isHidden() and not fenetre.game.isHidden()
+
+
+def test_dialogues_opaques_avec_le_theme_claude(fenetre):
+    from PySide6.QtWidgets import QMessageBox
+    _theme(fenetre, "claude")
+    box = QMessageBox(fenetre)
+    box.setText("test")
+    box.show()
+    assert box.grab().toImage().pixelColor(6, 6).alpha() == 255
+    box.hide()
+
+
+def test_anneau_suit_les_petits_ecarts(fenetre):
+    jauge = fenetre.vram.gauge
+    jauge.set(33.0, "33%", "")
+    for i in range(1, 200):
+        jauge.set(33.0 + i * 0.033, "", "")
+    assert abs(jauge.shown - jauge.percent) <= 0.5

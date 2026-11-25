@@ -12,11 +12,21 @@ Windows la lit).
 Le reste vit dans `cachymon/` : `config` (constantes, `APP_ROOT`), `i18n` (TRANSLATIONS,
 `tr`), `theme`, `sensors` (CPU, RAM, GPU), `controllers` (XInput + HID), `winshm` (mémoire
 partagée Afterburner/RTSS), `winapi` (liaisons ctypes), `pawnio`, `elevation`, `game`
-(statistiques + goulot), `game_windows` (RTSS, PresentMon), `sampler`, `widgets`, `debug`, `updater` + `updatebar`
+(statistiques + goulot), `game_windows` (RTSS, PresentMon), `sampler`, `widgets`, `titlebar`, `debug`, `updater` + `updatebar`
 (mise à jour intégrée, voir plus bas).
 Pièges : une globale réécrite (`global X`) doit rester dans le module qui la définit, et
 `PRESENTMON_STATE` se lit par `presentmon_state()` (dans `game_windows`), jamais par
 `from ... import PRESENTMON_STATE`.
+
+## Apparence (1.8.0, portée de la version Linux le 25/11/2026)
+- 22 thèmes dans `theme.py`, chaque rôle présent dans chaque palette (`tests/test_themes.py`).
+  « windows » suit la couleur d'accent (bleu si grise). Barre de titre teintée (`titlebar.py`).
+- Thème Claude en verre : la règle `QWidget { background: transparent }` impose les règles
+  opaques `QDialog`, `QMenu`, `QToolTip`. Fenêtre transparente de Linux **non portée** (choix).
+- Réglages d'apparence repliés (bouton « Apparence ») pour limiter la hauteur de la fenêtre.
+- Reste : fenêtre plus haute que 1080 px avec les Options ouvertes (déjà vrai en 1.7.1) ;
+  sans PawnIO ni Afterburner, en administrateur, le repli ACPI peut afficher une température
+  CPU fausse (17 °C vu le 25/11/2026).
 
 ## Contrôles avant une release
 - `ruff check .` (réglages dans `pyproject.toml`) et `python -m pytest -q` : doivent passer.

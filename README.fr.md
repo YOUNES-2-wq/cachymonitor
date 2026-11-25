@@ -14,7 +14,7 @@ Ou **[télécharger l'installateur Windows (CachyMonitor-Setup.exe)](https://git
 On double-clique, on installe, ça marche : ni Python ni PySide6 à installer, tout est
 dans l'exécutable. Au programme : statistiques de
 session (1 % low, 0.1 % low, moyenne), graphe de frametime, détection du goulot
-d'étranglement CPU/GPU, thème clair/sombre et interface en français ou en anglais.
+d'étranglement CPU/GPU, 22 thèmes et interface en français ou en anglais.
 
 > **Sous Windows, [MSI Afterburner](https://www.msi.com/Landing/afterburner) reste
 > conseillé.** Il est gratuit et livré avec RivaTuner (RTSS). Sans lui, l'application
@@ -40,13 +40,18 @@ Moniteur système léger : **CPU, GPU, RAM, VRAM, températures et FPS**, avec g
 
 > ℹ️ Projet communautaire indépendant, créé par un utilisateur de CachyOS. **Non affilié à l'équipe officielle de CachyOS** — le nom traduit simplement l'affection pour la distribution.
 
-![CachyMonitor en thème sombre](docs/screenshot.png)
+![CachyMonitor, thème Claude, pendant une partie](docs/theme-claude.png)
 
-*Jauges CPU / GPU / RAM / VRAM avec températures et courbes de tendance, et en bas les statistiques de session : FPS, 1 % low, 0.1 % low, frametime et goulot d'étranglement CPU/GPU.*
+*Thème Claude en jeu : jauges CPU / GPU / RAM / VRAM avec températures et courbes de tendance,
+batterie de la manette, puis FPS, 1 % low, 0.1 % low, frametime et goulot d'étranglement CPU/GPU.*
 
-![CachyMonitor en thème clair, panneau Options ouvert](docs/screenshot-clair.png)
+![CachyMonitor, thème noir OLED](docs/theme-oled.png)
 
-*Thème clair, panneau Options ouvert : intervalle de rafraîchissement, cible FPS, thème (clair / sombre / système), langue et affichage au-dessus des autres fenêtres.*
+*Thème Noir (OLED).*
+
+![CachyMonitor, thème Nord Light](docs/theme-nord-light.png)
+
+*Thème Nord Light.*
 
 ![CachyMonitor sur un second écran pendant une partie](docs/double-ecran.jpg)
 
@@ -82,7 +87,10 @@ compagnon, distincte du jeu, qui réunit dans une seule interface visuelle :
   (un seul fichier Python, une seule dépendance) ;
 - la **manette** : modèle, connexion câble ou Bluetooth et niveau de batterie,
   pour ne plus se faire surprendre en pleine partie ;
-- en **thème clair ou sombre**, au choix ou en suivant automatiquement le bureau.
+- avec **22 thèmes**, sombres et clairs, ou en suivant automatiquement le bureau : Windows 11
+  (reprend ta couleur d'accent), Claude (verre dépoli et fond animé), Synthwave, Cyberpunk,
+  Dracula, Nord, Catppuccin et d'autres ;
+- un **mode compact** et le choix des cartes affichées (**Options > Apparence**).
 
 Les briques existaient déjà (RivaTuner, PresentMon…), mais personne ne les avait
 assemblées en un **tableau de bord compagnon pensé pour le jeu**. C'est toute
