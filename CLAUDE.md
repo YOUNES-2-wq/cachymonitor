@@ -28,6 +28,9 @@ Pièges : une globale réécrite (`global X`) doit rester dans le module qui la 
   sans PawnIO ni Afterburner, en administrateur, le repli ACPI peut afficher une température
   CPU fausse (17 °C vu le 25/11/2026).
 
+- Coût du fond animé mesuré sous Windows (25/11/2026, hors jeu, fenêtre visible) : environ
+  16 % d'un cœur ; 0 % figé. Mesurer avec un relevé SANS jeu, sinon le mode calme le fige.
+
 ## Contrôles avant une release
 - `ruff check .` (réglages dans `pyproject.toml`) et `python -m pytest -q` : doivent passer.
   Les tests (`tests/`) couvrent les calculs purs (FPS, lows, batterie Sony, couleurs,
@@ -44,8 +47,8 @@ Younes (GitHub `YOUNES-2-wq`) : gamer, **pas développeur**. Toujours répondre
 **en français**, expliquer simplement, demander avant les actions publiques.
 
 ## Distribution
-- **winget** `YOUNES-2-wq.CachyMonitor` — en **1.7.0** (#483266 fusionnée) ; **1.7.1 soumise** :
-  [#485890](https://github.com/microsoft/winget-pkgs/pull/485890), en attente (deux installateurs,
+- **winget** `YOUNES-2-wq.CachyMonitor` — **1.7.1 fusionnée** (#485890, 21/11/2026) ; **1.8.0 soumise** le
+  25/11/2026 : [#489236](https://github.com/microsoft/winget-pkgs/pull/489236), en attente (deux installateurs,
   `Scope: user` et `Scope: machine` avec `/ALLUSERS`). Manifestes dans `packaging/winget/manifests`,
   procédure dans `packaging/winget/README.md`. Pour la version suivante : PARTIR du manifeste
   publié (`gh api repos/microsoft/winget-pkgs/contents/manifests/y/YOUNES-2-wq/CachyMonitor/<v>/...`),
